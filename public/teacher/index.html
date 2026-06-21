@@ -57,6 +57,7 @@
       <input id="studentNumber" placeholder="번호" type="number" style="width:80px" />
       <button onclick="addStudent()">등록</button>
       <div class="table-scroll"><table id="studentTable" class="student-table"></table></div>
+      <button class="secondary" style="margin-top:10px;" onclick="saveAllCodes()">로그인 코드 일괄 저장</button>
     </div>
 
     <div class="card">
@@ -178,6 +179,22 @@ async function saveCode(id) {
   try {
     await API.put(`/api/students/${id}`, { login_code: code });
     showToast('로그인 코드가 저장됐어요');
+  } catch (e) {
+    alert(e.message);
+    loadStudents();
+  }
+}
+
+async function saveAllCodes() {
+  const inputs = document.querySelectorAll('#studentTable .code-input');
+  const updates = Array.from(inputs).map(input => ({
+    id: Number(input.id.replace('code-', '')),
+    login_code: input.value.trim()
+  }));
+  if (!updates.length) return;
+  try {
+    await API.put('/api/students/bulk/login-codes', { updates });
+    showToast(`로그인 코드 ${updates.length}건을 일괄 저장했어요`);
   } catch (e) {
     alert(e.message);
     loadStudents();
