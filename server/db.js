@@ -1,28 +1,59 @@
 const path = require('path');
 const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite');
+const { createClient } = require('@libsql/client');
 
-const dataDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const url = process.env.TURSO_DATABASE_URL || `file:${path.join(__dirname, '..', 'data', 'routine.db')}`;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-const raw = new DatabaseSync(path.join(dataDir, 'routine.db'));
-raw.exec('PRAGMA journal_mode = WAL');
-raw.exec('PRAGMA foreign_keys = ON');
+if (url.startsWith('file:')) {
+  const dataDir = path.join(__dirname, '..', 'data');
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+}
 
-const migration = fs.readFileSync(path.join(__dirname, 'migrations', '001_init.sql'), 'utf8');
-raw.exec(migration);
+const client = createClient(authToken ? { url, authToken } : { url });
 
-// better-sqlite3 호환 래퍼: prepare().run/get/all 패턴을 그대로 사용
-const db = {
-  prepare(sql) {
-    const stmt = raw.prepare(sql);
-    return {
-      run: (...params) => stmt.run(...params),
-      get: (...params) => stmt.get(...params),
-      all: (...params) => stmt.all(...params)
-    };
-  },
-  exec(sql) { return raw.exec(sql); }
-};
+function rowToObject(row, columns) {
+  const obj = {};
+  columns.forEach((col, i) => { obj[col] = row[i]; });
+  return obj;
+}
 
-module.exports = db;
+function prepare(sql) {
+  return {
+    async run(...params) {
+      const rs = await client.execute({ sql, args: params });
+      return {
+        lastInsertRowid: rs.lastInsertRowid !== undefined ? Number(rs.lastInsertRowid) : undefined,
+        changes: rs.rowsAffected
+      };
+    },
+    async get(...params) {
+      const rs = await client.execute({ sql, args: params });
+      return rs.rows[0] ? rowToObject(rs.rows[0], rs.columns) : undefined;
+    },
+    async all(...params) {
+      const rs = await client.execute({ sql, args: params });
+      return rs.rows.map(r => rowToObject(r, rs.columns));
+    }
+  };
+}
+
+async function exec(sql) {
+  const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+  for (const stmt of statements) {
+    await client.execute(stmt);
+  }
+}
+
+let ready;
+function init() {
+  if (!ready) {
+    ready = (async () => {
+      const migration = fs.readFileSync(path.join(__dirname, 'migrations', '001_init.sql'), 'utf8');
+      await exec(migration);
+    })();
+  }
+  return ready;
+}
+
+module.exports = { prepare, exec, init };

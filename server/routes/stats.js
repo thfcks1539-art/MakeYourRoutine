@@ -3,27 +3,28 @@ const db = require('../db');
 const { todayStr, dowOf, pickMessage } = require('../utils');
 const router = express.Router();
 
-function routinesForStudent(classId, studentId, dow) {
-  const rows = db.prepare(
+async function routinesForStudent(classId, studentId, dow) {
+  const rows = await db.prepare(
     `SELECT * FROM routines WHERE class_id = ? AND active = 1 AND (student_id IS NULL OR student_id = ?)`
   ).all(classId, studentId);
   return rows.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
 }
 
 // 교사 대시보드: 학급 전체 게이지 + 학생별 완료율 + 메시지
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   const classId = req.query.class_id;
   const date = req.query.date || todayStr();
   const dow = dowOf(date);
 
-  const students = db.prepare(`SELECT id, nickname, number, points, avatar_json FROM students WHERE class_id = ? ORDER BY number ASC`).all(classId);
+  const students = await db.prepare(`SELECT id, nickname, number, points, avatar_json FROM students WHERE class_id = ? ORDER BY number ASC`).all(classId);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
 
-  const studentStats = students.map(s => {
-    const routines = routinesForStudent(classId, s.id, dow);
-    const checks = db.prepare(
+  const studentStats = [];
+  for (const s of students) {
+    const routines = await routinesForStudent(classId, s.id, dow);
+    const checks = await db.prepare(
       `SELECT * FROM routine_checks WHERE student_id = ? AND date = ?`
     ).all(s.id, date);
     const checkMap = new Map(checks.map(c => [c.routine_id, c]));
@@ -47,7 +48,7 @@ router.get('/dashboard', (req, res) => {
     totalRoutines += routines.length;
     totalCompleted += completedCount;
 
-    return {
+    studentStats.push({
       student_id: s.id,
       nickname: s.nickname,
       number: s.number,
@@ -56,13 +57,13 @@ router.get('/dashboard', (req, res) => {
       rate,
       completed_count: completedCount,
       total_count: routines.length,
-      message: pickMessage(db, classId, rate),
+      message: await pickMessage(db, classId, rate),
       routines: routineDetail
-    };
-  });
+    });
+  }
 
   const classRate = totalRoutines ? totalCompleted / totalRoutines : 0;
-  const cls = db.prepare(`SELECT goal_gauge_target, reward_text FROM classes WHERE id = ?`).get(classId);
+  const cls = await db.prepare(`SELECT goal_gauge_target, reward_text FROM classes WHERE id = ?`).get(classId);
 
   res.json({
     date,
@@ -74,21 +75,21 @@ router.get('/dashboard', (req, res) => {
 });
 
 // 하루 마감: 오늘(또는 지정 날짜)의 학급 통계를 daily_class_summary에 스냅샷으로 저장
-router.post('/day-end', (req, res) => {
+router.post('/day-end', async (req, res) => {
   const classId = req.body.class_id;
   const date = req.body.date || todayStr();
   const dow = dowOf(date);
 
-  const students = db.prepare(`SELECT id FROM students WHERE class_id = ?`).all(classId);
+  const students = await db.prepare(`SELECT id FROM students WHERE class_id = ?`).all(classId);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
   let participants = 0;
 
   for (const s of students) {
-    const routines = routinesForStudent(classId, s.id, dow);
+    const routines = await routinesForStudent(classId, s.id, dow);
     if (!routines.length) continue;
-    const checks = db.prepare(`SELECT * FROM routine_checks WHERE student_id = ? AND date = ?`).all(s.id, date);
+    const checks = await db.prepare(`SELECT * FROM routine_checks WHERE student_id = ? AND date = ?`).all(s.id, date);
     const completedCount = checks.filter(c => c.completed).length;
     totalRoutines += routines.length;
     totalCompleted += completedCount;
@@ -97,7 +98,7 @@ router.post('/day-end', (req, res) => {
 
   const completionRate = totalRoutines ? totalCompleted / totalRoutines : 0;
 
-  db.prepare(
+  await db.prepare(
     `INSERT INTO daily_class_summary (class_id, date, total_routines, completed_routines, completion_rate, participants)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(class_id, date) DO UPDATE SET
@@ -110,10 +111,10 @@ router.post('/day-end', (req, res) => {
   res.json({ date, total_routines: totalRoutines, completed_routines: totalCompleted, completion_rate: completionRate, participants });
 });
 
-router.get('/weekly', (req, res) => {
+router.get('/weekly', async (req, res) => {
   const classId = req.query.class_id;
   const days = Number(req.query.days || 7);
-  const rows = db.prepare(
+  const rows = await db.prepare(
     `SELECT date, COUNT(*) as total, SUM(completed) as completed
      FROM routine_checks
      WHERE student_id IN (SELECT id FROM students WHERE class_id = ?)
@@ -122,9 +123,9 @@ router.get('/weekly', (req, res) => {
   res.json(rows.reverse());
 });
 
-router.get('/csv', (req, res) => {
+router.get('/csv', async (req, res) => {
   const classId = req.query.class_id;
-  const rows = db.prepare(
+  const rows = await db.prepare(
     `SELECT s.nickname, s.number, r.title, rc.date, rc.completed, rc.count
      FROM routine_checks rc
      JOIN students s ON s.id = rc.student_id

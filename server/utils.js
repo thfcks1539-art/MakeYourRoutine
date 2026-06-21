@@ -23,11 +23,10 @@ function genCode(len = 4) {
   return code;
 }
 
-function pickMessage(db, classId, rate) {
-  const tiers = db.prepare(
+async function pickMessage(db, classId, rate) {
+  const tiers = await db.prepare(
     `SELECT * FROM encouragement_tiers WHERE class_id = ? OR class_id IS NULL ORDER BY (class_id IS NULL) ASC, sort_order ASC`
   ).all(classId);
-  const seen = new Set();
   for (const t of tiers) {
     if (rate >= t.min_rate && rate <= t.max_rate) return t.message;
   }
