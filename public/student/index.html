@@ -7,9 +7,7 @@
 <link rel="stylesheet" href="../shared/common.css" />
 <link rel="manifest" href="../manifest.json" />
 <style>
-  .topbar { display:flex; justify-content:space-between; align-items:center; }
-  .topbar .links a { margin-left: 12px; color:#4a7cff; text-decoration:none; font-size:14px; }
-  .slot-title { margin: 18px 0 8px; color: #666; font-size: 14px; }
+  .slot-title { margin: 18px 0 8px; color: #666; font-size: 15px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -132,7 +130,7 @@ async function loadToday() {
         <div class="icon">${r.icon}</div>
         <div class="title">
           ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
-          ${r.carried_over ? '<div style="font-size:11px; color:#c98a1e;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
+          ${r.carried_over ? '<div style="font-size:13px; color:#c98a1e; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
         </div>
         <div class="check-btn ${done ? 'done' : ''}" onclick="toggle(${r.id}, this)">${done ? '✓' : ''}</div>
       </div>`;

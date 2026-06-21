@@ -15,7 +15,7 @@
     <h2>내 캐릭터 꾸미기</h2>
     <div style="font-size:48px; text-align:center; margin-bottom:10px;" id="avatarPreview"></div>
     <p style="margin:0 0 4px; font-size:13px; color:#888;">얼굴</p>
-    <div style="display:flex; gap:6px; margin-bottom:8px;" id="facePicker">
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="facePicker">
       <button class="secondary" onclick="pickFace('🙂')">🙂</button>
       <button class="secondary" onclick="pickFace('😎')">😎</button>
       <button class="secondary" onclick="pickFace('🐱')">🐱</button>
@@ -24,7 +24,7 @@
       <button class="secondary" onclick="pickFace('🐼')">🐼</button>
     </div>
     <p style="margin:0 0 4px; font-size:13px; color:#888;">머리/모자 (선택)</p>
-    <div style="display:flex; gap:6px; margin-bottom:8px;" id="hatPicker">
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="hatPicker">
       <button class="secondary" onclick="pickHat('')">없음</button>
       <button class="secondary" onclick="pickHat('🎩')">🎩</button>
       <button class="secondary" onclick="pickHat('👑')">👑</button>
@@ -36,7 +36,7 @@
 
   <div class="card">
     <h2>오늘 한 줄 회고</h2>
-    <div style="display:flex; gap:6px; margin-bottom:8px;" id="emojiPicker">
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="emojiPicker">
       <button class="secondary" onclick="pickEmoji('😊')">😊</button>
       <button class="secondary" onclick="pickEmoji('💪')">💪</button>
       <button class="secondary" onclick="pickEmoji('😴')">😴</button>
