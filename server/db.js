@@ -49,7 +49,12 @@ let ready;
 function init() {
   if (!ready) {
     ready = (async () => {
-      const migration = fs.readFileSync(path.join(__dirname, 'migrations', '001_init.sql'), 'utf8');
+      const migrationPath = path.join(__dirname, 'migrations', '001_init.sql');
+      if (!fs.existsSync(migrationPath)) {
+        console.warn('마이그레이션 파일을 찾을 수 없어 건너뜁니다 (이미 적용된 스키마를 사용한다고 가정):', migrationPath);
+        return;
+      }
+      const migration = fs.readFileSync(migrationPath, 'utf8');
       await exec(migration);
     })();
   }
