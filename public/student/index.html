@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>오늘의 루틴</title>
+<link rel="stylesheet" href="../shared/common.css" />
+<link rel="manifest" href="../manifest.json" />
+<style>
+  .topbar { display:flex; justify-content:space-between; align-items:center; }
+  .topbar .links a { margin-left: 12px; color:#4a7cff; text-decoration:none; font-size:14px; }
+  .slot-title { margin: 18px 0 8px; color: #666; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="loginView" class="card" style="display:none; max-width:360px; margin:60px auto;">
+    <h2 style="text-align:center;">로그인</h2>
+    <input id="loginCode" placeholder="내 코드 입력 (4자리)" style="width:100%; text-align:center; font-size:24px; letter-spacing:4px;" maxlength="4" />
+    <button style="width:100%; margin-top:10px;" onclick="login()">시작하기</button>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <div class="topbar">
+      <h1 id="greeting">안녕!</h1>
+      <div class="links">
+        <a href="index.html">나의 루틴</a>
+        <a href="class-board.html">우리 반 보드</a>
+        <a href="me.html">나의 통계</a>
+        <a href="../index.html">처음으로</a>
+        <a href="#" onclick="logout()">로그아웃</a>
+      </div>
+    </div>
+    <div id="pointsBar" style="margin-bottom:10px; font-size:14px; color:#5a6a85;"></div>
+    <div id="encourageBanner"></div>
+    <div id="routineList"></div>
+  </div>
+</div>
+
+<audio id="doneSound" preload="auto">
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+</audio>
+<div class="toast" id="toast"></div>
+
+<script src="../shared/api.js"></script>
+<script>
+let studentId = sessionStorage.getItem('studentId');
+let classId = sessionStorage.getItem('studentClassId');
+let stopPolling;
+
+function showLogin() {
+  document.getElementById('loginView').style.display = 'block';
+  document.getElementById('mainView').style.display = 'none';
+}
+function showMain() {
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('mainView').style.display = 'block';
+  document.getElementById('greeting').textContent = `안녕, ${sessionStorage.getItem('studentNickname')}!`;
+  stopPolling = startPolling(loadToday, 7000);
+  startPolling(loadEncouragements, 8000);
+  loadPoints();
+}
+
+async function loadPoints() {
+  const s = await API.get(`/api/students/${studentId}`);
+  const stickers = '⭐'.repeat(Math.min(Math.floor((s.points || 0) / 5), 10));
+  document.getElementById('pointsBar').textContent = `${s.points || 0}점  ${stickers}`;
+}
+
+async function loadEncouragements() {
+  const list = await API.get(`/api/encouragements?student_id=${studentId}&unread_only=1`);
+  const box = document.getElementById('encourageBanner');
+  if (!list.length) { box.innerHTML = ''; return; }
+  const m = list[0];
+  box.innerHTML = `<div class="card" style="background:#fff7e0; border:1px solid #ffe2a0;">
+    💌 ${m.message}
+    <button class="secondary" style="margin-left:10px; font-size:12px; padding:4px 8px;" onclick="readEncouragement(${m.id})">확인</button>
+  </div>`;
+}
+
+async function readEncouragement(id) {
+  await API.post(`/api/encouragements/${id}/read`);
+  loadEncouragements();
+}
+
+async function login() {
+  const code = document.getElementById('loginCode').value.trim();
+  if (!code) return;
+  try {
+    const s = await API.post('/api/students/login', { login_code: code });
+    studentId = s.id;
+    classId = s.class_id;
+    sessionStorage.setItem('studentId', studentId);
+    sessionStorage.setItem('studentClassId', classId);
+    sessionStorage.setItem('studentNickname', s.nickname);
+    showMain();
+  } catch (e) {
+    alert('코드를 다시 확인해주세요');
+  }
+}
+
+function logout() {
+  sessionStorage.clear();
+  if (stopPolling) stopPolling();
+  showLogin();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+async function loadToday() {
+  const data = await API.get(`/api/checks/today?class_id=${classId}&student_id=${studentId}`);
+  const slots = {};
+  data.routines.forEach(r => {
+    slots[r.time_slot] = slots[r.time_slot] || [];
+    slots[r.time_slot].push(r);
+  });
+
+  const order = ['아침', '오전', '오후', '하루'];
+  const keys = Object.keys(slots).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+  const list = document.getElementById('routineList');
+  list.innerHTML = keys.map(slot => `
+    <div class="slot-title">${slot}</div>
+    ${slots[slot].map(r => {
+      const done = r.check.completed;
+      return `<div class="routine-item">
+        <div class="icon">${r.icon}</div>
+        <div class="title">
+          ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
+          ${r.carried_over ? '<div style="font-size:11px; color:#c98a1e;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
+        </div>
+        <div class="check-btn ${done ? 'done' : ''}" onclick="toggle(${r.id}, this)">${done ? '✓' : ''}</div>
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+async function toggle(routineId, el) {
+  const res = await API.post('/api/checks/toggle', { routine_id: routineId, student_id: studentId });
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 200);
+  if (res.completed) {
+    document.getElementById('doneSound').play().catch(() => {});
+    showToast('잘했어요! 완료했어요 🎉');
+  }
+  loadToday();
+  loadPoints();
+}
+
+if (studentId) showMain(); else showLogin();
+</script>
+</body>
+</html>

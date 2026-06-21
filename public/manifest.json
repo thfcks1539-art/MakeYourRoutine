@@ -1,0 +1,9 @@
+{
+  "name": "우리 반 루틴",
+  "short_name": "루틴",
+  "start_url": "/student/index.html",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#4a7cff",
+  "icons": []
+}

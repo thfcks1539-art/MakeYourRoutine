@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>나의 통계</title>
+<link rel="stylesheet" href="../shared/common.css" />
+</head>
+<body>
+<div class="container">
+  <a href="index.html">&larr; 내 루틴으로</a>
+  <h1 id="title">나의 통계</h1>
+
+  <div class="card">
+    <h2>내 캐릭터 꾸미기</h2>
+    <div style="font-size:48px; text-align:center; margin-bottom:10px;" id="avatarPreview"></div>
+    <p style="margin:0 0 4px; font-size:13px; color:#888;">얼굴</p>
+    <div style="display:flex; gap:6px; margin-bottom:8px;" id="facePicker">
+      <button class="secondary" onclick="pickFace('🙂')">🙂</button>
+      <button class="secondary" onclick="pickFace('😎')">😎</button>
+      <button class="secondary" onclick="pickFace('🐱')">🐱</button>
+      <button class="secondary" onclick="pickFace('🐶')">🐶</button>
+      <button class="secondary" onclick="pickFace('🦊')">🦊</button>
+      <button class="secondary" onclick="pickFace('🐼')">🐼</button>
+    </div>
+    <p style="margin:0 0 4px; font-size:13px; color:#888;">머리/모자 (선택)</p>
+    <div style="display:flex; gap:6px; margin-bottom:8px;" id="hatPicker">
+      <button class="secondary" onclick="pickHat('')">없음</button>
+      <button class="secondary" onclick="pickHat('🎩')">🎩</button>
+      <button class="secondary" onclick="pickHat('👑')">👑</button>
+      <button class="secondary" onclick="pickHat('🎀')">🎀</button>
+      <button class="secondary" onclick="pickHat('⭐')">⭐</button>
+    </div>
+    <button onclick="saveAvatar()">저장</button>
+  </div>
+
+  <div class="card">
+    <h2>오늘 한 줄 회고</h2>
+    <div style="display:flex; gap:6px; margin-bottom:8px;" id="emojiPicker">
+      <button class="secondary" onclick="pickEmoji('😊')">😊</button>
+      <button class="secondary" onclick="pickEmoji('💪')">💪</button>
+      <button class="secondary" onclick="pickEmoji('😴')">😴</button>
+      <button class="secondary" onclick="pickEmoji('🥳')">🥳</button>
+    </div>
+    <input id="reflectionText" placeholder="오늘 하루는 어땠나요?" style="width:70%;" />
+    <button onclick="saveReflection()">저장</button>
+  </div>
+
+  <div class="card">
+    <h2>연속 달성(스트릭)</h2>
+    <div class="grid" id="streakGrid"></div>
+  </div>
+</div>
+
+<script src="../shared/api.js"></script>
+<script>
+const studentId = sessionStorage.getItem('studentId');
+const classId = sessionStorage.getItem('studentClassId');
+if (!studentId) location.href = 'index.html';
+
+let selectedEmoji = '😊';
+function pickEmoji(e) { selectedEmoji = e; }
+
+let avatar = { face: '🙂', hat: '' };
+function renderAvatarPreview() {
+  document.getElementById('avatarPreview').textContent = `${avatar.hat}${avatar.face}`;
+}
+function pickFace(f) { avatar.face = f; renderAvatarPreview(); }
+function pickHat(h) { avatar.hat = h; renderAvatarPreview(); }
+
+async function loadAvatar() {
+  const s = await API.get(`/api/students/${studentId}`);
+  if (s.avatar_json) avatar = JSON.parse(s.avatar_json);
+  renderAvatarPreview();
+}
+
+async function saveAvatar() {
+  await API.put(`/api/students/${studentId}/avatar`, { avatar_json: avatar });
+  alert('캐릭터가 저장됐어요!');
+}
+
+async function saveReflection() {
+  const text = document.getElementById('reflectionText').value;
+  const today = await API.get(`/api/checks/today?class_id=${classId}&student_id=${studentId}`);
+  if (!today.routines.length) return alert('오늘의 루틴이 없어요');
+  const routineId = today.routines[0].id;
+  await API.post('/api/checks/reflection', { routine_id: routineId, student_id: studentId, emoji: selectedEmoji, text });
+  alert('저장했어요!');
+}
+
+async function loadStreaks() {
+  const rows = await API.get(`/api/checks/streaks?student_id=${studentId}`);
+  const routines = await API.get(`/api/routines?class_id=${classId}&student_id=${studentId}`);
+  const titleMap = new Map(routines.map(r => [r.id, r]));
+  const grid = document.getElementById('streakGrid');
+  grid.innerHTML = rows.map(r => {
+    const routine = titleMap.get(r.routine_id);
+    return `<div class="student-card">
+      <div style="font-size:24px;">🔥 ${r.current_streak}</div>
+      <div style="font-size:13px;">${routine ? routine.icon + ' ' + routine.title : '루틴'}</div>
+      <div style="font-size:11px; color:#888;">최고 ${r.best_streak}일</div>
+    </div>`;
+  }).join('') || '<p style="color:#888;">아직 기록이 없어요. 오늘부터 시작해봐요!</p>';
+}
+
+document.title = '나의 통계';
+loadStreaks();
+loadAvatar();
+</script>
+</body>
+</html>

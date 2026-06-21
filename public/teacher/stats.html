@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>통계</title>
+<link rel="stylesheet" href="../shared/common.css" />
+</head>
+<body>
+<div class="container">
+  <a href="index.html">&larr; 대시보드로</a>
+  <h1>주간 통계</h1>
+
+  <div class="card">
+    <h2>최근 7일 학급 완료율</h2>
+    <div id="weeklyChart" style="display:flex; align-items:flex-end; gap:8px; height:160px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>목표/보상 설정</h2>
+    <input id="goalTarget" type="number" min="1" max="100" placeholder="목표 달성률(%)" />
+    <input id="rewardText" placeholder="보상 내용 (예: 칭찬 스티커판)" style="width:260px;" />
+    <button onclick="saveGoal()">저장</button>
+  </div>
+
+  <div class="card">
+    <h2>데이터 내보내기</h2>
+    <button onclick="downloadCsv()">CSV 다운로드</button>
+  </div>
+</div>
+
+<script src="../shared/api.js"></script>
+<script>
+const classId = sessionStorage.getItem('teacherClassId');
+if (!classId) location.href = 'index.html';
+
+async function loadWeekly() {
+  const rows = await API.get(`/api/stats/weekly?class_id=${classId}&days=7`);
+  const chart = document.getElementById('weeklyChart');
+  chart.innerHTML = rows.map(r => {
+    const rate = r.total ? Math.round((r.completed / r.total) * 100) : 0;
+    return `<div style="flex:1; text-align:center;">
+      <div style="background:#4a7cff; border-radius:6px 6px 0 0; height:${Math.max(rate,2)}px; transition:height .4s;"></div>
+      <div style="font-size:12px; margin-top:4px;">${r.date.slice(5)}</div>
+      <div style="font-size:12px; color:#888;">${rate}%</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadGoal() {
+  const cls = await API.get(`/api/classes/${classId}`);
+  document.getElementById('goalTarget').value = cls.goal_gauge_target;
+  document.getElementById('rewardText').value = cls.reward_text || '';
+}
+
+async function saveGoal() {
+  const goal_gauge_target = Number(document.getElementById('goalTarget').value);
+  const reward_text = document.getElementById('rewardText').value;
+  await API.put(`/api/classes/${classId}`, { goal_gauge_target, reward_text });
+  alert('저장되었습니다');
+}
+
+function downloadCsv() {
+  window.open(`/api/stats/csv?class_id=${classId}`, '_blank');
+}
+
+loadWeekly();
+loadGoal();
+</script>
+</body>
+</html>

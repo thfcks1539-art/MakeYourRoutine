@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>전자칠판 모드</title>
+<link rel="stylesheet" href="../shared/common.css" />
+<style>
+  body { background: #1f2430; color: white; }
+  .container { max-width: 1400px; }
+  h1 { font-size: 2.4rem; text-align: center; }
+  .gauge-wrap { gap: 24px; }
+  .gauge-bar { height: 40px; }
+  #classGaugeLabel { font-size: 2rem; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
+  .student-card { background: #2b3142; color: white; }
+  .student-card .ring span { background: #2b3142; color: white; }
+  .msg { color: #b9c4dd !important; }
+  a.back { color: #8fa3ff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back" href="index.html">&larr; 대시보드</a>
+  <h1 id="className">우리 반 오늘의 루틴</h1>
+  <div class="card" style="background:#2b3142;">
+    <div class="gauge-wrap">
+      <div class="gauge-bar"><div class="gauge-fill" id="classGaugeFill" style="width:0%"></div></div>
+      <strong id="classGaugeLabel">0%</strong>
+    </div>
+    <p id="rewardText" style="color:#b9c4dd;"></p>
+  </div>
+  <div class="grid" id="studentGrid"></div>
+</div>
+
+<script src="../shared/api.js"></script>
+<script>
+const classId = sessionStorage.getItem('teacherClassId');
+if (!classId) location.href = 'index.html';
+
+async function load() {
+  const cls = await API.get(`/api/classes/${classId}`);
+  document.getElementById('className').textContent = cls.name + ' 오늘의 루틴';
+  document.getElementById('rewardText').textContent = cls.reward_text ? `🎁 목표 달성 시: ${cls.reward_text}` : '';
+
+  const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
+  const pct = Math.round(data.class_rate * 100);
+  document.getElementById('classGaugeFill').style.width = pct + '%';
+  document.getElementById('classGaugeLabel').textContent = pct + '%';
+
+  const grid = document.getElementById('studentGrid');
+  grid.innerHTML = data.students.map(s => {
+    const rate = Math.round(s.rate * 100);
+    return `<div class="student-card">
+      <div class="ring" style="--rate:${rate}"><span>${rate}%</span></div>
+      <div>${s.nickname}</div>
+      <div class="msg">${s.message || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+startPolling(load, 5000);
+</script>
+</body>
+</html>

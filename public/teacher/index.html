@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>교사 대시보드 - 루틴 관리</title>
+<link rel="stylesheet" href="../shared/common.css" />
+<style>
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .topbar .links a { margin-left: 10px; color: #4a7cff; text-decoration: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="setupView" class="card" style="display:none;">
+    <h2>학급 시작하기</h2>
+    <div id="createBox">
+      <p>새 학급을 만들거나, 기존 학급 번호로 로그인하세요.</p>
+      <h3>새 학급 만들기</h3>
+      <input id="newClassName" placeholder="학급 이름 (예: 3학년 2반)" />
+      <input id="newClassPin" placeholder="교사 비밀번호(PIN)" />
+      <button onclick="createClass()">학급 만들기</button>
+      <hr />
+      <h3>기존 학급 로그인</h3>
+      <div id="classListBox"></div>
+      <div id="pinBox" style="display:none; margin-top:10px;">
+        <p id="pinPrompt"></p>
+        <input id="loginClassPin" type="password" placeholder="교사 비밀번호(PIN)" />
+        <button onclick="loginClass()">로그인</button>
+        <button class="secondary" onclick="cancelPinBox()">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainView" style="display:none;">
+    <div class="topbar">
+      <h1 id="className">학급</h1>
+      <div class="links">
+        <a href="routines.html">루틴 관리</a>
+        <a href="board.html">전자칠판 모드</a>
+        <a href="stats.html">통계</a>
+        <a href="../student/index.html">학생 화면으로</a>
+        <a href="../index.html">처음으로</a>
+        <a href="#" onclick="logout()">로그아웃</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>오늘 우리 반 달성률</h2>
+      <div class="gauge-wrap">
+        <div class="gauge-bar"><div class="gauge-fill" id="classGaugeFill" style="width:0%"></div></div>
+        <strong id="classGaugeLabel">0%</strong>
+      </div>
+      <p id="rewardText" style="color:#5a6a85; font-size:14px;"></p>
+      <button class="secondary" onclick="dayEnd()">하루 마감하기</button>
+    </div>
+
+    <div class="card">
+      <h2>학생 등록</h2>
+      <input id="studentNickname" placeholder="닉네임" />
+      <input id="studentNumber" placeholder="번호" type="number" style="width:80px" />
+      <button onclick="addStudent()">등록</button>
+      <table id="studentTable" class="student-table"></table>
+    </div>
+
+    <div class="card">
+      <h2>학생별 오늘 진행</h2>
+      <div class="grid" id="studentGrid"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="../shared/api.js"></script>
+<script>
+let classId = sessionStorage.getItem('teacherClassId');
+let stopPolling;
+
+function showSetup() {
+  document.getElementById('setupView').style.display = 'block';
+  document.getElementById('mainView').style.display = 'none';
+  loadClassList();
+}
+function showMain() {
+  document.getElementById('setupView').style.display = 'none';
+  document.getElementById('mainView').style.display = 'block';
+  loadClassInfo();
+  loadStudents();
+  stopPolling = startPolling(loadDashboard, 5000);
+}
+
+async function createClass() {
+  const name = document.getElementById('newClassName').value.trim();
+  const pin = document.getElementById('newClassPin').value.trim();
+  if (!name || !pin) return alert('학급 이름과 비밀번호를 입력하세요');
+  try {
+    const cls = await API.post('/api/classes', { name, teacher_pin: pin });
+    await API.post(`/api/classes/${cls.id}/login`, { teacher_pin: pin });
+    classId = cls.id;
+    sessionStorage.setItem('teacherClassId', classId);
+    showMain();
+  } catch (e) {
+    alert(e.message);
+    loadClassList();
+  }
+}
+
+async function loadClassList() {
+  const classes = await API.get('/api/classes');
+  const box = document.getElementById('classListBox');
+  if (!classes.length) {
+    box.innerHTML = '<p style="color:#888;">아직 만들어진 학급이 없어요. 위에서 새 학급을 만들어주세요.</p>';
+    return;
+  }
+  box.innerHTML = classes.map(c =>
+    `<button class="secondary" style="display:block; width:100%; text-align:left; margin-bottom:6px;" onclick="selectClass(${c.id}, '${c.name.replace(/'/g, "\\'")}')">${c.name} (ID: ${c.id})</button>`
+  ).join('');
+}
+
+let pendingClassId = null;
+function selectClass(id, name) {
+  pendingClassId = id;
+  document.getElementById('pinPrompt').textContent = `"${name}" 비밀번호를 입력하세요`;
+  document.getElementById('pinBox').style.display = 'block';
+  document.getElementById('loginClassPin').value = '';
+  document.getElementById('loginClassPin').focus();
+}
+function cancelPinBox() {
+  pendingClassId = null;
+  document.getElementById('pinBox').style.display = 'none';
+}
+
+async function loginClass() {
+  const id = pendingClassId;
+  const pin = document.getElementById('loginClassPin').value.trim();
+  try {
+    const cls = await API.post(`/api/classes/${id}/login`, { teacher_pin: pin });
+    classId = cls.id;
+    sessionStorage.setItem('teacherClassId', classId);
+    showMain();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('teacherClassId');
+  if (stopPolling) stopPolling();
+  classId = null;
+  showSetup();
+}
+
+async function loadClassInfo() {
+  const cls = await API.get(`/api/classes/${classId}`);
+  document.getElementById('className').textContent = cls.name + ` (ID: ${cls.id})`;
+  document.getElementById('rewardText').textContent = cls.reward_text ? `🎁 목표 달성 시: ${cls.reward_text}` : '';
+}
+
+async function loadStudents() {
+  const students = await API.get(`/api/students?class_id=${classId}`);
+  const table = document.getElementById('studentTable');
+  table.innerHTML = '<tr><th>번호</th><th>닉네임</th><th>로그인 코드</th><th></th><th></th></tr>' +
+    students.map(s => `<tr>
+      <td>${s.number ?? ''}</td>
+      <td>${s.nickname}</td>
+      <td><input class="code-input" id="code-${s.id}" value="${s.login_code}" maxlength="4" /></td>
+      <td><button class="secondary" onclick="saveCode(${s.id})">저장</button></td>
+      <td><button class="secondary" onclick="removeStudent(${s.id})">삭제</button></td>
+    </tr>`).join('');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+async function saveCode(id) {
+  const input = document.getElementById(`code-${id}`);
+  const code = input.value.trim();
+  try {
+    await API.put(`/api/students/${id}`, { login_code: code });
+    showToast('로그인 코드가 저장됐어요');
+  } catch (e) {
+    alert(e.message);
+    loadStudents();
+  }
+}
+
+async function addStudent() {
+  const nickname = document.getElementById('studentNickname').value.trim();
+  const number = document.getElementById('studentNumber').value;
+  if (!nickname) return alert('닉네임을 입력하세요');
+  await API.post('/api/students', { class_id: classId, nickname, number: number || null });
+  document.getElementById('studentNickname').value = '';
+  document.getElementById('studentNumber').value = '';
+  loadStudents();
+}
+
+async function removeStudent(id) {
+  if (!confirm('이 학생을 삭제할까요?')) return;
+  await API.del(`/api/students/${id}`);
+  loadStudents();
+}
+
+async function loadDashboard() {
+  const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
+  const pct = Math.round(data.class_rate * 100);
+  document.getElementById('classGaugeFill').style.width = pct + '%';
+  document.getElementById('classGaugeLabel').textContent = pct + '%';
+
+  const grid = document.getElementById('studentGrid');
+  grid.innerHTML = data.students.map(s => {
+    const rate = Math.round(s.rate * 100);
+    const stickers = '⭐'.repeat(Math.min(Math.floor((s.points || 0) / 5), 10));
+    return `<div class="student-card">
+      <div style="font-size:22px;">${renderAvatar(s.avatar_json)}</div>
+      <div class="ring" style="--rate:${rate}"><span>${rate}%</span></div>
+      <div>${s.nickname}${s.number ? ' (' + s.number + ')' : ''}</div>
+      <div style="font-size:12px;color:#888;">${s.completed_count}/${s.total_count} 완료 · ${s.points || 0}점</div>
+      <div style="font-size:14px;">${stickers}</div>
+      <div class="msg">${s.message || ''}</div>
+      <button class="secondary" style="font-size:12px; padding:6px 10px;" onclick="sendEncouragement(${s.student_id}, '${s.nickname.replace(/'/g, "\\'")}')">격려 보내기</button>
+    </div>`;
+  }).join('');
+}
+
+function renderAvatar(avatarJson) {
+  if (!avatarJson) return '🙂';
+  return `${avatarJson.hat || ''}${avatarJson.face || '🙂'}`;
+}
+
+async function sendEncouragement(studentId, nickname) {
+  const presets = ['잘하고 있어요! 💪', '오늘도 멋져요! 🌟', '조금만 더 힘내봐요! 🙌', '꾸준함이 최고예요! 👏'];
+  const choice = prompt(
+    `${nickname}에게 보낼 메시지를 입력하거나, 아래 번호를 입력하세요\n1) ${presets[0]}\n2) ${presets[1]}\n3) ${presets[2]}\n4) ${presets[3]}`,
+    '1'
+  );
+  if (!choice) return;
+  const message = presets[Number(choice) - 1] || choice;
+  await API.post('/api/encouragements', { class_id: classId, to_student_id: studentId, message });
+  showToast('격려를 보냈어요!');
+}
+
+async function dayEnd() {
+  if (!confirm('오늘 하루를 마감하고 통계를 저장할까요?')) return;
+  const summary = await API.post('/api/stats/day-end', { class_id: classId });
+  alert(`오늘 마감 완료!\n전체 루틴 ${summary.total_routines}개 중 ${summary.completed_routines}개 완료 (${Math.round(summary.completion_rate * 100)}%)\n참여 학생: ${summary.participants}명`);
+}
+
+if (classId) showMain(); else showSetup();
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>우리 반 보드</title>
+<link rel="stylesheet" href="../shared/common.css" />
+</head>
+<body>
+<div class="container">
+  <a href="index.html">&larr; 내 루틴으로</a>
+  <h1>우리 반 보드</h1>
+
+  <div class="card">
+    <h2>오늘 우리 반 달성률</h2>
+    <div class="gauge-wrap">
+      <div class="gauge-bar"><div class="gauge-fill" id="classGaugeFill" style="width:0%"></div></div>
+      <strong id="classGaugeLabel">0%</strong>
+    </div>
+    <p id="rewardText" style="color:#5a6a85; font-size:14px;"></p>
+  </div>
+
+  <div class="card">
+    <h2>친구들 진행 상황</h2>
+    <p style="color:#888; font-size:13px;">완료했거나 진행 중인 친구들을 응원해주세요 🙌</p>
+    <div class="grid" id="friendGrid"></div>
+  </div>
+</div>
+
+<script src="../shared/api.js"></script>
+<script>
+const classId = sessionStorage.getItem('studentClassId');
+if (!classId) location.href = 'index.html';
+
+async function load() {
+  const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
+  const pct = Math.round(data.class_rate * 100);
+  document.getElementById('classGaugeFill').style.width = pct + '%';
+  document.getElementById('classGaugeLabel').textContent = pct + '%';
+  document.getElementById('rewardText').textContent = data.reward_text ? `🎁 목표 달성 시: ${data.reward_text}` : '';
+
+  const grid = document.getElementById('friendGrid');
+  grid.innerHTML = data.students.map(s => {
+    let status;
+    if (s.rate >= 1) status = '🌟 완료';
+    else if (s.rate > 0) status = '🙂 진행중';
+    else status = '🌱 시작 전';
+    return `<div class="student-card">
+      <div style="font-size:28px;">${renderAvatar(s.avatar_json)}</div>
+      <div>${s.nickname}</div>
+      <div style="font-size:12px; color:#888;">${status}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderAvatar(avatarJson) {
+  if (!avatarJson) return '🙂';
+  return `${avatarJson.hat || ''}${avatarJson.face || '🙂'}`;
+}
+
+startPolling(load, 7000);
+</script>
+</body>
+</html>
