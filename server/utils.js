@@ -5,9 +5,9 @@ function todayStr() {
 }
 
 function dowOf(dateStr) {
-  // 0=Sun ... 6=Sat, KST 기준
-  const d = new Date(dateStr + 'T00:00:00+09:00');
-  return d.getDay();
+  // 0=Sun ... 6=Sat, 'YYYY-MM-DD' 달력 날짜 기준 (서버 로컬 시간대 영향 없음)
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
 function addDays(dateStr, n) {
