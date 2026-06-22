@@ -21,6 +21,32 @@ async function ensureCheckRow(routineId, studentId, date, carriedOver) {
     .get(routineId, studentId, date);
 }
 
+// routineIds 전체에 대해 한 번의 SELECT + (필요시) 한 번의 INSERT로 체크 행을 준비 (N+1 회피)
+async function ensureCheckRowsBatch(routineIds, studentId, date, carriedOver) {
+  const map = new Map();
+  if (!routineIds.length) return map;
+
+  const placeholders = routineIds.map(() => '?').join(',');
+  const existing = await db.prepare(
+    `SELECT * FROM routine_checks WHERE student_id = ? AND date = ? AND routine_id IN (${placeholders})`
+  ).all(studentId, date, ...routineIds);
+  existing.forEach(c => map.set(c.routine_id, c));
+
+  const missing = routineIds.filter(id => !map.has(id));
+  if (missing.length) {
+    const values = missing.map(() => '(?, ?, ?, ?)').join(', ');
+    const params = [];
+    missing.forEach(id => params.push(id, studentId, date, carriedOver ? 1 : 0));
+    await db.prepare(`INSERT INTO routine_checks (routine_id, student_id, date, carried_over) VALUES ${values}`).run(...params);
+    missing.forEach(id => map.set(id, {
+      routine_id: id, student_id: Number(studentId), date,
+      count: 0, completed: 0, completed_at: null,
+      carried_over: carriedOver ? 1 : 0, reflection_emoji: null, reflection_text: null
+    }));
+  }
+  return map;
+}
+
 // 전날 미완료 루틴을 오늘로 이월
 async function carryOverRoutines(classId, studentId, date, scheduledIds) {
   const yesterday = addDays(date, -1);
@@ -30,15 +56,18 @@ async function carryOverRoutines(classId, studentId, date, scheduledIds) {
      WHERE rc.student_id = ? AND rc.date = ? AND rc.completed = 0 AND r.active = 1 AND r.class_id = ?`
   ).all(studentId, yesterday, classId);
 
-  const carried = [];
-  for (const mc of missed) {
-    if (scheduledIds.has(mc.routine_id)) continue;
-    const routine = await db.prepare(`SELECT * FROM routines WHERE id = ?`).get(mc.routine_id);
-    if (!routine) continue;
-    const check = await ensureCheckRow(routine.id, studentId, date, true);
-    carried.push({ ...routine, check });
-  }
-  return carried;
+  const candidateIds = [...new Set(missed.map(mc => mc.routine_id).filter(id => !scheduledIds.has(id)))];
+  if (!candidateIds.length) return [];
+
+  const placeholders = candidateIds.map(() => '?').join(',');
+  const routines = await db.prepare(`SELECT * FROM routines WHERE id IN (${placeholders})`).all(...candidateIds);
+  const routineMap = new Map(routines.map(r => [r.id, r]));
+
+  const checkMap = await ensureCheckRowsBatch(candidateIds, studentId, date, true);
+
+  return candidateIds
+    .filter(id => routineMap.has(id))
+    .map(id => ({ ...routineMap.get(id), check: checkMap.get(id) }));
 }
 
 async function updateStreak(studentId, routineId, date, completedNow) {
@@ -62,12 +91,11 @@ router.get('/today', async (req, res) => {
   const { class_id, student_id } = req.query;
   const date = todayStr();
   const routines = await activeRoutinesFor(class_id, student_id, date);
-  const scheduled = [];
-  for (const r of routines) {
-    const check = await ensureCheckRow(r.id, student_id, date);
-    scheduled.push({ ...r, check, carried_over: false, locked: isPastDeadline(r.deadline_time) });
-  }
   const scheduledIds = new Set(routines.map(r => r.id));
+
+  const checkMap = await ensureCheckRowsBatch(routines.map(r => r.id), student_id, date, false);
+  const scheduled = routines.map(r => ({ ...r, check: checkMap.get(r.id), carried_over: false, locked: isPastDeadline(r.deadline_time) }));
+
   const carriedRows = await carryOverRoutines(class_id, student_id, date, scheduledIds);
   const carried = carriedRows.map(r => ({ ...r, carried_over: true, locked: isPastDeadline(r.deadline_time) }));
 
