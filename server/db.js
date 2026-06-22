@@ -45,6 +45,18 @@ async function exec(sql) {
   }
 }
 
+async function columnExists(table, column) {
+  const rs = await client.execute(`PRAGMA table_info(${table})`);
+  const nameIdx = rs.columns.indexOf('name');
+  return rs.rows.some(r => r[nameIdx] === column);
+}
+
+async function ensureColumn(table, column, ddl) {
+  if (!(await columnExists(table, column))) {
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
+
 let ready;
 function init() {
   if (!ready) {
@@ -56,6 +68,7 @@ function init() {
       }
       const migration = fs.readFileSync(migrationPath, 'utf8');
       await exec(migration);
+      await ensureColumn('routines', 'deadline_time', 'deadline_time TEXT');
     })();
   }
   return ready;

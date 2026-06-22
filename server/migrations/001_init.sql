@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS routines (
   time_slot TEXT DEFAULT '하루',
   days_of_week TEXT DEFAULT '0,1,2,3,4,5,6',
   target_count INTEGER DEFAULT 1,
+  deadline_time TEXT,
   active INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))

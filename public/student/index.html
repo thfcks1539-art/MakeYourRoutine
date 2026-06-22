@@ -131,23 +131,28 @@ async function loadToday() {
         <div class="title">
           ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
           ${r.carried_over ? '<div style="font-size:13px; color:#c98a1e; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
+          ${r.locked && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
-        <div class="check-btn ${done ? 'done' : ''}" onclick="toggle(${r.id}, this)">${done ? '✓' : ''}</div>
+        <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;
     }).join('')}
   `).join('');
 }
 
 async function toggle(routineId, el) {
-  const res = await API.post('/api/checks/toggle', { routine_id: routineId, student_id: studentId });
-  el.classList.add('bump');
-  setTimeout(() => el.classList.remove('bump'), 200);
-  if (res.completed) {
-    document.getElementById('doneSound').play().catch(() => {});
-    showToast('잘했어요! 완료했어요 🎉');
+  try {
+    const res = await API.post('/api/checks/toggle', { routine_id: routineId, student_id: studentId });
+    el.classList.add('bump');
+    setTimeout(() => el.classList.remove('bump'), 200);
+    if (res.completed) {
+      document.getElementById('doneSound').play().catch(() => {});
+      showToast('잘했어요! 완료했어요 🎉');
+    }
+    loadPoints();
+  } catch (e) {
+    alert(e.message);
   }
   loadToday();
-  loadPoints();
 }
 
 if (studentId) showMain(); else showLogin();

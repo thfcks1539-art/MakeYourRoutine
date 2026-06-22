@@ -17,6 +17,17 @@ function addDays(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
+function nowHM() {
+  // KST 기준 HH:MM
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return now.toISOString().slice(11, 16);
+}
+
+function isPastDeadline(deadlineTime) {
+  if (!deadlineTime) return false;
+  return nowHM() > deadlineTime;
+}
+
 function genCode(len = 4) {
   let code = '';
   for (let i = 0; i < len; i++) code += Math.floor(Math.random() * 10);
@@ -33,4 +44,4 @@ async function pickMessage(db, classId, rate) {
   return '';
 }
 
-module.exports = { todayStr, dowOf, addDays, genCode, pickMessage };
+module.exports = { todayStr, dowOf, addDays, genCode, pickMessage, nowHM, isPastDeadline };

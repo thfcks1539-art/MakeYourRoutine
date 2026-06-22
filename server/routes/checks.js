@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { todayStr, dowOf, addDays } = require('../utils');
+const { todayStr, dowOf, addDays, isPastDeadline } = require('../utils');
 const router = express.Router();
 
 async function activeRoutinesFor(classId, studentId, date) {
@@ -65,11 +65,11 @@ router.get('/today', async (req, res) => {
   const scheduled = [];
   for (const r of routines) {
     const check = await ensureCheckRow(r.id, student_id, date);
-    scheduled.push({ ...r, check, carried_over: false });
+    scheduled.push({ ...r, check, carried_over: false, locked: isPastDeadline(r.deadline_time) });
   }
   const scheduledIds = new Set(routines.map(r => r.id));
   const carriedRows = await carryOverRoutines(class_id, student_id, date, scheduledIds);
-  const carried = carriedRows.map(r => ({ ...r, carried_over: true }));
+  const carried = carriedRows.map(r => ({ ...r, carried_over: true, locked: isPastDeadline(r.deadline_time) }));
 
   const result = [...scheduled, ...carried].sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id));
   res.json({ date, routines: result });
@@ -81,6 +81,9 @@ router.post('/toggle', async (req, res) => {
   const date = todayStr();
   const routine = await db.prepare(`SELECT * FROM routines WHERE id = ?`).get(routine_id);
   if (!routine) return res.status(404).json({ error: 'routine not found' });
+  if (isPastDeadline(routine.deadline_time)) {
+    return res.status(403).json({ error: `마감 시간(${routine.deadline_time})이 지나서 체크할 수 없어요` });
+  }
   const row = await ensureCheckRow(routine_id, student_id, date);
 
   let count, completed;

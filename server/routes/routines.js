@@ -19,11 +19,14 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order } = req.body;
+  const { class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, deadline_time } = req.body;
   if (!class_id || !title) return res.status(400).json({ error: 'class_id, title 필요' });
+  if (deadline_time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(deadline_time)) {
+    return res.status(400).json({ error: '마감 시간은 HH:MM 형식이어야 해요' });
+  }
   const info = await db.prepare(
-    `INSERT INTO routines (class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO routines (class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, deadline_time)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     class_id,
     student_id || null,
@@ -32,13 +35,17 @@ router.post('/', async (req, res) => {
     time_slot || '하루',
     days_of_week || '0,1,2,3,4,5,6',
     target_count || 1,
-    sort_order || 0
+    sort_order || 0,
+    deadline_time || null
   );
   res.json({ id: info.lastInsertRowid });
 });
 
 router.put('/:id', async (req, res) => {
-  const { title, icon, time_slot, days_of_week, target_count, active, sort_order } = req.body;
+  const { title, icon, time_slot, days_of_week, target_count, active, sort_order, deadline_time } = req.body;
+  if (deadline_time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(deadline_time)) {
+    return res.status(400).json({ error: '마감 시간은 HH:MM 형식이어야 해요' });
+  }
   await db.prepare(
     `UPDATE routines SET
       title = COALESCE(?, title),
@@ -47,9 +54,10 @@ router.put('/:id', async (req, res) => {
       days_of_week = COALESCE(?, days_of_week),
       target_count = COALESCE(?, target_count),
       active = COALESCE(?, active),
-      sort_order = COALESCE(?, sort_order)
+      sort_order = COALESCE(?, sort_order),
+      deadline_time = COALESCE(?, deadline_time)
      WHERE id = ?`
-  ).run(title, icon, time_slot, days_of_week, target_count, active, sort_order, req.params.id);
+  ).run(title, icon, time_slot, days_of_week, target_count, active, sort_order, deadline_time, req.params.id);
   res.json({ ok: true });
 });
 
