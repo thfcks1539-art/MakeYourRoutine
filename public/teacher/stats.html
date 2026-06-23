@@ -24,6 +24,38 @@
   </div>
 
   <div class="card">
+    <h2>뽑기 설정</h2>
+    <p style="font-size:13px; color:#888; margin-top:0;">
+      하루를 마감하면 학생들이 "오늘 루틴을 한 만큼"에 따라 숫자 뽑기를 해요.
+      평소엔 보통 숫자가 나오고, 루틴을 많이 한 날엔 특별한 숫자가 나올 수 있어요.
+    </p>
+    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">보통 숫자 (쉼표로 구분, 작은 숫자부터)</label>
+    <input id="lowNumbers" placeholder="예: 1,2" style="width:100%; max-width:260px;" />
+
+    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">특별한 숫자 (쉼표로 구분, 작은 숫자부터)</label>
+    <input id="highNumbers" placeholder="예: 3,4,5" style="width:100%; max-width:260px;" />
+
+    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+      오늘 루틴을 한 만큼이 몇 % 이상이면 특별한 숫자가 나올 수 있는지
+    </label>
+    <input id="drawThreshold" type="number" min="0" max="100" placeholder="예: 70" style="width:100px;" /> %
+
+    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+      그 기준을 막 넘었을 때, 특별한 숫자가 나올 확률
+    </label>
+    <input id="drawMinChance" type="number" min="0" max="100" placeholder="예: 15" style="width:100px;" /> %
+
+    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+      루틴을 100% 다 했을 때, 특별한 숫자가 나올 확률
+    </label>
+    <input id="drawMaxChance" type="number" min="0" max="100" placeholder="예: 60" style="width:100px;" /> %
+
+    <div style="margin-top:14px;">
+      <button onclick="saveDrawConfig()">뽑기 설정 저장</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>데이터 내보내기</h2>
     <button onclick="downloadCsv()">CSV 다운로드</button>
   </div>
@@ -51,6 +83,13 @@ async function loadGoal() {
   const cls = await API.get(`/api/classes/${classId}`);
   document.getElementById('goalTarget').value = cls.goal_gauge_target;
   document.getElementById('rewardText').value = cls.reward_text || '';
+
+  const draw = cls.draw_config;
+  document.getElementById('lowNumbers').value = draw.lowNumbers.join(',');
+  document.getElementById('highNumbers').value = draw.highNumbers.join(',');
+  document.getElementById('drawThreshold').value = Math.round(draw.threshold * 100);
+  document.getElementById('drawMinChance').value = Math.round(draw.minChance * 100);
+  document.getElementById('drawMaxChance').value = Math.round(draw.maxChance * 100);
 }
 
 async function saveGoal() {
@@ -58,6 +97,31 @@ async function saveGoal() {
   const reward_text = document.getElementById('rewardText').value;
   await API.put(`/api/classes/${classId}`, { goal_gauge_target, reward_text });
   alert('저장되었습니다');
+}
+
+function parseNumberList(text) {
+  return text.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n));
+}
+
+async function saveDrawConfig() {
+  const lowNumbers = parseNumberList(document.getElementById('lowNumbers').value);
+  const highNumbers = parseNumberList(document.getElementById('highNumbers').value);
+  if (!lowNumbers.length || !highNumbers.length) {
+    return alert('보통 숫자와 특별한 숫자를 하나 이상 입력해주세요');
+  }
+  const draw_config = {
+    lowNumbers,
+    highNumbers,
+    threshold: Number(document.getElementById('drawThreshold').value) / 100,
+    minChance: Number(document.getElementById('drawMinChance').value) / 100,
+    maxChance: Number(document.getElementById('drawMaxChance').value) / 100
+  };
+  try {
+    await API.put(`/api/classes/${classId}`, { draw_config });
+    alert('뽑기 설정을 저장했어요');
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function downloadCsv() {

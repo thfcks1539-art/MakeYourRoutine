@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { todayStr, dowOf } = require('../utils');
+const { todayStr, dowOf, rollDrawNumber } = require('../utils');
 const router = express.Router();
 
 function pickMessageFrom(tiers, classId, rate) {
@@ -113,10 +113,13 @@ router.post('/day-end', async (req, res) => {
   const dow = dowOf(date);
 
   const { students, routinesByStudent, checksByStudent } = await loadClassContext(classId, date, dow);
+  const cls = await db.prepare(`SELECT draw_config_json FROM classes WHERE id = ?`).get(classId);
+  const drawConfig = cls && cls.draw_config_json ? JSON.parse(cls.draw_config_json) : null;
 
   let totalRoutines = 0;
   let totalCompleted = 0;
   let participants = 0;
+  const draws = [];
 
   for (const s of students) {
     const routines = routinesByStudent.get(s.id) || [];
@@ -126,21 +129,44 @@ router.post('/day-end', async (req, res) => {
     totalRoutines += routines.length;
     totalCompleted += completedCount;
     if (completedCount > 0) participants++;
+
+    const rate = completedCount / routines.length;
+    const { number, tier } = rollDrawNumber(rate, drawConfig);
+    draws.push({ student_id: s.id, rate, number, tier });
   }
 
   const completionRate = totalRoutines ? totalCompleted / totalRoutines : 0;
 
-  await db.prepare(
-    `INSERT INTO daily_class_summary (class_id, date, total_routines, completed_routines, completion_rate, participants)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(class_id, date) DO UPDATE SET
-       total_routines = excluded.total_routines,
-       completed_routines = excluded.completed_routines,
-       completion_rate = excluded.completion_rate,
-       participants = excluded.participants`
-  ).run(classId, date, totalRoutines, totalCompleted, completionRate, participants);
+  const writes = [{
+    sql: `INSERT INTO daily_class_summary (class_id, date, total_routines, completed_routines, completion_rate, participants)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(class_id, date) DO UPDATE SET
+            total_routines = excluded.total_routines,
+            completed_routines = excluded.completed_routines,
+            completion_rate = excluded.completion_rate,
+            participants = excluded.participants`,
+    params: [classId, date, totalRoutines, totalCompleted, completionRate, participants]
+  }];
+
+  for (const d of draws) {
+    writes.push({
+      sql: `INSERT INTO daily_draws (student_id, date, rate, number, tier) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(student_id, date) DO UPDATE SET rate = excluded.rate, number = excluded.number, tier = excluded.tier`,
+      params: [d.student_id, date, d.rate, d.number, d.tier]
+    });
+  }
+
+  await db.batch(writes);
 
   res.json({ date, total_routines: totalRoutines, completed_routines: totalCompleted, completion_rate: completionRate, participants });
+});
+
+// 학생별 오늘의 뽑기 결과 (하루 마감 전이면 null)
+router.get('/draw', async (req, res) => {
+  const { student_id } = req.query;
+  const date = req.query.date || todayStr();
+  const row = await db.prepare(`SELECT date, rate, number, tier FROM daily_draws WHERE student_id = ? AND date = ?`).get(student_id, date);
+  res.json(row || null);
 });
 
 router.get('/weekly', async (req, res) => {

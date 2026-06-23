@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { DEFAULT_DRAW_CONFIG } = require('../utils');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -24,15 +25,37 @@ router.post('/:id/login', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const cls = await db.prepare(`SELECT id, name, goal_gauge_target, reward_text, created_at FROM classes WHERE id = ?`).get(req.params.id);
+  const cls = await db.prepare(`SELECT id, name, goal_gauge_target, reward_text, draw_config_json, created_at FROM classes WHERE id = ?`).get(req.params.id);
   if (!cls) return res.status(404).json({ error: 'not found' });
-  res.json(cls);
+  const draw_config = cls.draw_config_json ? JSON.parse(cls.draw_config_json) : DEFAULT_DRAW_CONFIG;
+  delete cls.draw_config_json;
+  res.json({ ...cls, draw_config });
 });
 
 router.put('/:id', async (req, res) => {
-  const { goal_gauge_target, reward_text } = req.body;
-  await db.prepare(`UPDATE classes SET goal_gauge_target = COALESCE(?, goal_gauge_target), reward_text = COALESCE(?, reward_text) WHERE id = ?`)
-    .run(goal_gauge_target, reward_text, req.params.id);
+  const { goal_gauge_target, reward_text, draw_config } = req.body;
+  let drawConfigJson;
+  if (draw_config) {
+    const lowNumbers = (draw_config.lowNumbers || []).map(Number).filter(n => Number.isFinite(n));
+    const highNumbers = (draw_config.highNumbers || []).map(Number).filter(n => Number.isFinite(n));
+    if (!lowNumbers.length || !highNumbers.length) {
+      return res.status(400).json({ error: '보통 숫자와 특별한 숫자를 하나 이상 입력해주세요' });
+    }
+    drawConfigJson = JSON.stringify({
+      lowNumbers,
+      highNumbers,
+      threshold: Number(draw_config.threshold),
+      minChance: Number(draw_config.minChance),
+      maxChance: Number(draw_config.maxChance)
+    });
+  }
+  await db.prepare(
+    `UPDATE classes SET
+       goal_gauge_target = COALESCE(?, goal_gauge_target),
+       reward_text = COALESCE(?, reward_text),
+       draw_config_json = COALESCE(?, draw_config_json)
+     WHERE id = ?`
+  ).run(goal_gauge_target ?? null, reward_text ?? null, drawConfigJson ?? null, req.params.id);
   res.json({ ok: true });
 });
 

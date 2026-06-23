@@ -82,6 +82,8 @@ function init() {
       const migration = fs.readFileSync(migrationPath, 'utf8');
       await exec(migration);
       await ensureColumn('routines', 'deadline_time', 'deadline_time TEXT');
+      await ensureColumn('classes', 'draw_config_json', 'draw_config_json TEXT');
+      await ensureColumn('daily_draws', 'tier', 'tier TEXT');
     })();
   }
   return ready;
