@@ -38,6 +38,19 @@ function prepare(sql) {
   };
 }
 
+// 여러 SQL을 한 번의 네트워크 왕복으로 실행 (원격 DB 환경에서 지연 누적 방지)
+async function batch(statements) {
+  const results = await client.batch(
+    statements.map(s => ({ sql: s.sql, args: s.params || [] })),
+    'write'
+  );
+  return results.map(rs => ({
+    rows: rs.rows.map(r => rowToObject(r, rs.columns)),
+    lastInsertRowid: rs.lastInsertRowid !== undefined ? Number(rs.lastInsertRowid) : undefined,
+    changes: rs.rowsAffected
+  }));
+}
+
 async function exec(sql) {
   const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
   for (const stmt of statements) {
@@ -74,4 +87,4 @@ function init() {
   return ready;
 }
 
-module.exports = { prepare, exec, init };
+module.exports = { prepare, exec, batch, init };
