@@ -25,27 +25,27 @@
 
   <div class="card">
     <h2>뽑기 설정</h2>
-    <p style="font-size:13px; color:#888; margin-top:0;">
+    <p style="font-size:13px; color:var(--color-silver); margin-top:0;">
       하루를 마감하면 학생들이 "오늘 루틴을 한 만큼"에 따라 숫자 뽑기를 해요.
       평소엔 보통 숫자가 나오고, 루틴을 많이 한 날엔 특별한 숫자가 나올 수 있어요.
     </p>
-    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">보통 숫자 (쉼표로 구분, 작은 숫자부터)</label>
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">보통 숫자 (쉼표로 구분, 작은 숫자부터)</label>
     <input id="lowNumbers" placeholder="예: 1,2" style="width:100%; max-width:260px;" />
 
-    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">특별한 숫자 (쉼표로 구분, 작은 숫자부터)</label>
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">특별한 숫자 (쉼표로 구분, 작은 숫자부터)</label>
     <input id="highNumbers" placeholder="예: 3,4,5" style="width:100%; max-width:260px;" />
 
-    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">
       오늘 루틴을 한 만큼이 몇 % 이상이면 특별한 숫자가 나올 수 있는지
     </label>
     <input id="drawThreshold" type="number" min="0" max="100" placeholder="예: 70" style="width:100px;" /> %
 
-    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">
       그 기준을 막 넘었을 때, 특별한 숫자가 나올 확률
     </label>
     <input id="drawMinChance" type="number" min="0" max="100" placeholder="예: 15" style="width:100px;" /> %
 
-    <label style="display:block; font-size:13px; color:#5a6a85; margin-top:10px;">
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">
       루틴을 100% 다 했을 때, 특별한 숫자가 나올 확률
     </label>
     <input id="drawMaxChance" type="number" min="0" max="100" placeholder="예: 60" style="width:100px;" /> %
@@ -72,9 +72,9 @@ async function loadWeekly() {
   chart.innerHTML = rows.map(r => {
     const rate = r.total ? Math.round((r.completed / r.total) * 100) : 0;
     return `<div style="flex:1; text-align:center;">
-      <div style="background:#4a7cff; border-radius:6px 6px 0 0; height:${Math.max(rate,2)}px; transition:height .4s;"></div>
+      <div style="background:var(--color-duo-green); border-radius:6px 6px 0 0; height:${Math.max(rate,2)}px; transition:height .4s;"></div>
       <div style="font-size:12px; margin-top:4px;">${r.date.slice(5)}</div>
-      <div style="font-size:12px; color:#888;">${rate}%</div>
+      <div style="font-size:12px; color:var(--color-silver);">${rate}%</div>
     </div>`;
   }).join('');
 }

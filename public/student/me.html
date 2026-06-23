@@ -14,7 +14,7 @@
   <div class="card">
     <h2>내 캐릭터 꾸미기</h2>
     <div style="font-size:48px; text-align:center; margin-bottom:10px;" id="avatarPreview"></div>
-    <p style="margin:0 0 4px; font-size:13px; color:#888;">얼굴</p>
+    <p style="margin:0 0 4px; font-size:13px; color:var(--color-silver);">얼굴</p>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="facePicker">
       <button class="secondary" onclick="pickFace('🙂')">🙂</button>
       <button class="secondary" onclick="pickFace('😎')">😎</button>
@@ -23,7 +23,7 @@
       <button class="secondary" onclick="pickFace('🦊')">🦊</button>
       <button class="secondary" onclick="pickFace('🐼')">🐼</button>
     </div>
-    <p style="margin:0 0 4px; font-size:13px; color:#888;">머리/모자 (선택)</p>
+    <p style="margin:0 0 4px; font-size:13px; color:var(--color-silver);">머리/모자 (선택)</p>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="hatPicker">
       <button class="secondary" onclick="pickHat('')">없음</button>
       <button class="secondary" onclick="pickHat('🎩')">🎩</button>
@@ -98,9 +98,9 @@ async function loadStreaks() {
     return `<div class="student-card">
       <div style="font-size:24px;">🔥 ${r.current_streak}</div>
       <div style="font-size:13px;">${routine ? routine.icon + ' ' + routine.title : '루틴'}</div>
-      <div style="font-size:11px; color:#888;">최고 ${r.best_streak}일</div>
+      <div style="font-size:11px; color:var(--color-silver);">최고 ${r.best_streak}일</div>
     </div>`;
-  }).join('') || '<p style="color:#888;">아직 기록이 없어요. 오늘부터 시작해봐요!</p>';
+  }).join('') || '<p style="color:var(--color-silver);">아직 기록이 없어요. 오늘부터 시작해봐요!</p>';
 }
 
 document.title = '나의 통계';

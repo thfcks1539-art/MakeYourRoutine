@@ -6,76 +6,70 @@
 <title>전자칠판 모드</title>
 <link rel="stylesheet" href="../shared/common.css" />
 <style>
-  body { background: #1f2430; color: white; }
   .container { max-width: 1400px; }
   h1 { font-size: 2.4rem; text-align: center; }
   .gauge-wrap { gap: 24px; }
   .gauge-bar { height: 40px; }
-  #classGaugeLabel { font-size: 2rem; }
+  #classGaugeLabel { font-size: 2rem; color: var(--color-duo-green); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
-  .student-card { background: #2b3142; color: white; cursor: pointer; transition: transform 0.15s; }
+  .student-card { cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
   .student-card:active { transform: scale(0.96); }
-  .student-card .ring span { background: #2b3142; color: white; }
-  .msg { color: #b9c4dd !important; }
-  a.back { color: #8fa3ff; }
+  .student-card:hover { border-color: var(--color-sky-blue); }
+  a.back { color: var(--color-sky-blue); font-weight: 700; }
   @media (max-width: 600px) {
     h1 { font-size: 1.6rem; }
     #classGaugeLabel { font-size: 1.4rem; }
   }
 
   .overlay {
-    position: fixed; inset: 0; background: rgba(10,12,18,0.78);
+    position: fixed; inset: 0; background: rgba(59,68,92,0.55);
     display: none; align-items: center; justify-content: center; z-index: 100;
   }
   .overlay.show { display: flex; }
-  .overlay .card { background: #2b3142; color: white; width: 100%; max-width: 380px; text-align: center; }
-  .overlay h2 { font-size: 1.6rem; }
+  .overlay .card { width: 100%; max-width: 380px; text-align: center; }
+  .overlay h2 { font-size: 1.6rem; color: var(--color-charcoal); }
   .overlay input {
     width: 100%; text-align: center; font-size: 28px; letter-spacing: 6px;
-    background: #1f2430; color: white; border: 1px solid #3c455c;
   }
   .overlay .actions { display: flex; gap: 10px; margin-top: 12px; }
   .overlay .actions button { flex: 1; }
 
   .tabbar { display: flex; gap: 8px; margin-bottom: 16px; }
-  .tab-btn { background: #3c455c; color: #cdd5e6; }
-  .tab-btn.active { background: #4a7cff; color: white; }
+  .tab-btn { background: var(--color-cloud-gray); color: var(--color-graphite); box-shadow: none; }
+  .tab-btn.active { background: var(--color-sky-blue); color: white; box-shadow: 0 4px 0 var(--color-sky-blue-dark); }
   .routine-stat-item {
-    background: #2b3142; border-radius: 12px; padding: 14px 18px;
+    background: var(--color-snow-white); border: 2px solid var(--color-cloud-gray); border-radius: 14px; padding: 14px 18px;
     margin-bottom: 10px; display: flex; align-items: center; gap: 14px;
   }
   .routine-stat-item .icon { font-size: 26px; }
   .routine-stat-item .info { flex: 1; }
   .routine-stat-item .title { font-size: 16px; margin-bottom: 6px; }
-  .routine-stat-item .bar { height: 14px; background: #3c455c; border-radius: 7px; overflow: hidden; }
-  .routine-stat-item .bar-fill { height: 100%; background: linear-gradient(90deg, #7bd389, #4a7cff); }
-  .routine-stat-item .pct { font-weight: bold; min-width: 64px; text-align: right; }
+  .routine-stat-item .bar { height: 14px; background: var(--color-cloud-gray); border-radius: 7px; overflow: hidden; }
+  .routine-stat-item .bar-fill { height: 100%; background: var(--color-duo-green); }
+  .routine-stat-item .pct { font-weight: bold; min-width: 64px; text-align: right; color: var(--color-charcoal); }
 
   .gacha-overlay {
-    position: fixed; inset: 0; background: rgba(10,12,18,0.88);
+    position: fixed; inset: 0; background: rgba(59,68,92,0.6);
     display: none; align-items: center; justify-content: center; z-index: 300; padding: 16px;
   }
   .gacha-overlay.show { display: flex; }
   .gacha-card {
-    background: #2b3142; color: white; border-radius: 24px; padding: 40px 32px; text-align: center;
-    width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    background: var(--color-snow-white); border: 3px solid var(--color-duo-green-light); color: var(--color-almost-black); border-radius: 24px; padding: 40px 32px; text-align: center;
+    width: 100%; max-width: 460px;
   }
-  .gacha-title { color: #b9c4dd; font-size: 18px; margin-bottom: 8px; }
-  .gacha-number { font-size: 120px; font-weight: 800; margin: 12px 0; color: #7bd3ff; }
+  .gacha-title { color: var(--color-graphite); font-size: 18px; margin-bottom: 8px; font-family: var(--font-feather), var(--font-kr); }
+  .gacha-number { font-size: 120px; font-weight: 800; margin: 12px 0; color: var(--color-duo-green); font-family: var(--font-feather), var(--font-kr); }
+  .gacha-number.tier-special { color: var(--color-bubblegum-pink); }
   .gacha-number.spin { animation: gachaSpin 0.08s linear infinite; }
   .gacha-number.land { animation: gachaLand 0.4s ease; }
   @keyframes gachaSpin { from { transform: scale(1); } to { transform: scale(1.08); } }
   @keyframes gachaLand { 0% { transform: scale(0.4) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.2) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
-  .gacha-rate { font-size: 15px; color: #b9c4dd; margin-bottom: 14px; }
-  .gacha-msg { font-size: 20px; min-height: 50px; margin-bottom: 20px; }
+  .gacha-rate { font-size: 15px; color: var(--color-graphite); margin-bottom: 14px; }
+  .gacha-msg { font-size: 20px; min-height: 50px; margin-bottom: 20px; color: var(--color-charcoal); }
 
   #routineView { display: none; }
   #routineView .topbar h1 { font-size: 1.8rem; text-align: left; }
-  #routineView .routine-item { background: #2b3142; color: white; box-shadow: none; }
-  #routineView .slot-title { color: #b9c4dd; margin: 18px 0 8px; font-size: 15px; font-weight: 600; }
-  #routineView .check-btn { background: #3c455c; color: #cdd5e6; }
-  #routineView .check-btn.done { background: #4ad07a; color: white; }
-  #backToBoard { background: #3c455c; }
+  #routineView .slot-title { color: var(--color-graphite); margin: 18px 0 8px; font-size: 15px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -83,15 +77,15 @@
   <div id="boardView">
     <a class="back" href="index.html">&larr; 대시보드</a>
     <h1 id="className">우리 반 오늘의 루틴</h1>
-    <div class="card" style="background:#2b3142;">
+    <div class="card">
       <div class="gauge-wrap">
         <div class="gauge-bar"><div class="gauge-fill" id="classGaugeFill" style="width:0%"></div></div>
         <strong id="classGaugeLabel">0%</strong>
       </div>
-      <p id="rewardText" style="color:#b9c4dd;"></p>
+      <p id="rewardText" style="color:var(--color-graphite);"></p>
       <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button id="classDrawBtn" onclick="startClassDraw()">오늘의 뽑기 뽑기! 🎁</button>
-        <span id="classDrawResult" style="font-size:14px; color:#b9c4dd;"></span>
+        <span id="classDrawResult" style="font-size:14px; color:var(--color-graphite);"></span>
       </div>
     </div>
     <div class="tabbar">
@@ -105,7 +99,7 @@
   <div id="routineView">
     <div class="topbar">
       <h1 id="routineGreeting">안녕!</h1>
-      <button id="backToBoard" onclick="backToBoard()">반 전체 화면으로</button>
+      <button id="backToBoard" class="secondary" onclick="backToBoard()">반 전체 화면으로</button>
     </div>
     <div id="routineList"></div>
   </div>
@@ -135,6 +129,8 @@
 <audio id="doneSound" preload="auto">
   <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
 </audio>
+<audio id="drawNormalSound" preload="auto" src="../sounds/draw-normal.wav"></audio>
+<audio id="drawSpecialSound" preload="auto" src="../sounds/draw-special.wav"></audio>
 <div class="toast" id="toast"></div>
 
 <script src="../shared/api.js"></script>
@@ -205,7 +201,7 @@ function playGacha(draw) {
   const rateEl = document.getElementById('gachaRate');
   const msgEl = document.getElementById('gachaMsg');
 
-  numberEl.classList.remove('land');
+  numberEl.classList.remove('land', 'tier-special');
   numberEl.classList.add('spin');
   rateEl.textContent = `오늘 우리 반이 루틴을 ${Math.round(draw.rate * 100)}%만큼 했어요 · 많이 할수록 좋은 숫자가 나와요`;
   msgEl.textContent = '';
@@ -220,7 +216,12 @@ function playGacha(draw) {
       numberEl.classList.remove('spin');
       numberEl.textContent = draw.number;
       numberEl.classList.add('land');
+      numberEl.classList.toggle('tier-special', draw.tier === 'special');
       msgEl.textContent = GACHA_MESSAGES[draw.tier] || '';
+      const soundId = draw.tier === 'special' ? 'drawSpecialSound' : 'drawNormalSound';
+      const sound = document.getElementById(soundId);
+      sound.currentTime = 0;
+      sound.play().catch(() => {});
     }
   }, 70);
 }
@@ -248,7 +249,7 @@ function renderRoutineStats(students) {
   const stats = computeRoutineStats(students);
   const el = document.getElementById('routineStatsGrid');
   if (!stats.length) {
-    el.innerHTML = '<p style="color:#b9c4dd;">표시할 루틴이 없어요</p>';
+    el.innerHTML = '<p style="color:var(--color-silver);">표시할 루틴이 없어요</p>';
     return;
   }
   el.innerHTML = stats.map(s => {
@@ -346,7 +347,7 @@ async function loadToday() {
         <div class="title">
           ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
           ${r.carried_over ? '<div style="font-size:13px; color:#e0b25a; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
-          ${r.locked && !done ? `<div style="font-size:13px; color:#ff8a7a; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
+          ${r.locked && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
         <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;

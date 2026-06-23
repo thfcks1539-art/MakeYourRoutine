@@ -47,7 +47,7 @@
         <div class="gauge-bar"><div class="gauge-fill" id="classGaugeFill" style="width:0%"></div></div>
         <strong id="classGaugeLabel">0%</strong>
       </div>
-      <p id="rewardText" style="color:#5a6a85; font-size:14px;"></p>
+      <p id="rewardText" style="color:var(--color-graphite); font-size:14px;"></p>
       <button class="secondary" onclick="dayEnd()">하루 마감하기</button>
     </div>
 
@@ -106,7 +106,7 @@ async function loadClassList() {
   const classes = await API.get('/api/classes');
   const box = document.getElementById('classListBox');
   if (!classes.length) {
-    box.innerHTML = '<p style="color:#888;">아직 만들어진 학급이 없어요. 위에서 새 학급을 만들어주세요.</p>';
+    box.innerHTML = '<p style="color:var(--color-silver);">아직 만들어진 학급이 없어요. 위에서 새 학급을 만들어주세요.</p>';
     return;
   }
   box.innerHTML = classes.map(c =>
@@ -231,7 +231,7 @@ async function loadDashboard() {
       <div style="font-size:22px;">${renderAvatar(s.avatar_json)}</div>
       <div class="ring" style="--rate:${rate}"><span>${rate}%</span></div>
       <div>${s.nickname}${s.number ? ' (' + s.number + ')' : ''}</div>
-      <div style="font-size:12px;color:#888;">${s.completed_count}/${s.total_count} 완료 · ${s.points || 0}점</div>
+      <div style="font-size:12px;color:var(--color-silver);">${s.completed_count}/${s.total_count} 완료 · ${s.points || 0}점</div>
       <div style="font-size:14px;">${stickers}</div>
       <div class="msg">${s.message || ''}</div>
       <button class="secondary" style="font-size:12px; padding:6px 10px;" onclick="sendEncouragement(${s.student_id}, '${s.nickname.replace(/'/g, "\\'")}')">격려 보내기</button>

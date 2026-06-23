@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="../shared/common.css" />
 <link rel="manifest" href="../manifest.json" />
 <style>
-  .slot-title { margin: 18px 0 8px; color: #666; font-size: 15px; font-weight: 600; }
+  .slot-title { margin: 18px 0 8px; color: var(--color-graphite); font-size: 15px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -29,7 +29,7 @@
         <a href="#" onclick="logout()">로그아웃</a>
       </div>
     </div>
-    <div id="pointsBar" style="margin-bottom:10px; font-size:14px; color:#5a6a85;"></div>
+    <div id="pointsBar" style="margin-bottom:10px; font-size:14px; color:var(--color-graphite); font-weight:700;"></div>
     <div id="encourageBanner"></div>
     <div id="routineList"></div>
   </div>
@@ -70,7 +70,7 @@ async function loadEncouragements() {
   const box = document.getElementById('encourageBanner');
   if (!list.length) { box.innerHTML = ''; return; }
   const m = list[0];
-  box.innerHTML = `<div class="card" style="background:#fff7e0; border:1px solid #ffe2a0;">
+  box.innerHTML = `<div class="card" style="background:#fff9e0; border:2px solid var(--color-sunshine-yellow);">
     💌 ${m.message}
     <button class="secondary" style="margin-left:10px; font-size:12px; padding:4px 8px;" onclick="readEncouragement(${m.id})">확인</button>
   </div>`;

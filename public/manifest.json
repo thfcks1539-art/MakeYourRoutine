@@ -3,7 +3,7 @@
   "short_name": "루틴",
   "start_url": "/student/index.html",
   "display": "standalone",
-  "background_color": "#f6f8fb",
-  "theme_color": "#4a7cff",
+  "background_color": "#ffffff",
+  "theme_color": "#58cc02",
   "icons": []
 }
