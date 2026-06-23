@@ -57,7 +57,17 @@ router.put('/:id', async (req, res) => {
       sort_order = COALESCE(?, sort_order),
       deadline_time = COALESCE(?, deadline_time)
      WHERE id = ?`
-  ).run(title, icon, time_slot, days_of_week, target_count, active, sort_order, deadline_time, req.params.id);
+  ).run(
+    title ?? null,
+    icon ?? null,
+    time_slot ?? null,
+    days_of_week ?? null,
+    target_count ?? null,
+    active ?? null,
+    sort_order ?? null,
+    deadline_time ?? null,
+    req.params.id
+  );
   res.json({ ok: true });
 });
 

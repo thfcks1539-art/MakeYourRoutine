@@ -77,15 +77,15 @@ CREATE TABLE IF NOT EXISTS encouragement_tiers (
   sort_order INTEGER DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS daily_draws (
+CREATE TABLE IF NOT EXISTS class_draws (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_id INTEGER NOT NULL REFERENCES students(id),
+  class_id INTEGER NOT NULL REFERENCES classes(id),
   date TEXT NOT NULL,
   rate REAL,
   number INTEGER,
   tier TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  UNIQUE(student_id, date)
+  UNIQUE(class_id, date)
 );
 
 CREATE TABLE IF NOT EXISTS daily_class_summary (

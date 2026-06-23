@@ -8,24 +8,6 @@
 <link rel="manifest" href="../manifest.json" />
 <style>
   .slot-title { margin: 18px 0 8px; color: #666; font-size: 15px; font-weight: 600; }
-
-  .gacha-overlay {
-    position: fixed; inset: 0; background: rgba(20,24,35,0.75);
-    display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px;
-  }
-  .gacha-overlay.show { display: flex; }
-  .gacha-card {
-    background: white; border-radius: 20px; padding: 28px 24px; text-align: center;
-    width: 100%; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  }
-  .gacha-title { color: #5a6a85; font-size: 14px; margin-bottom: 4px; }
-  .gacha-number { font-size: 64px; font-weight: 800; margin: 8px 0; color: #4a7cff; }
-  .gacha-number.spin { animation: gachaSpin 0.08s linear infinite; }
-  .gacha-number.land { animation: gachaLand 0.4s ease; }
-  @keyframes gachaSpin { from { transform: scale(1); } to { transform: scale(1.1); } }
-  @keyframes gachaLand { 0% { transform: scale(0.4) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.2) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
-  .gacha-rate { font-size: 13px; color: #5a6a85; margin-bottom: 10px; }
-  .gacha-msg { font-size: 15px; min-height: 44px; margin-bottom: 16px; }
 </style>
 </head>
 <body>
@@ -53,16 +35,6 @@
   </div>
 </div>
 
-<div class="gacha-overlay" id="gachaOverlay">
-  <div class="gacha-card">
-    <div class="gacha-title">오늘의 행운 뽑기 🎁</div>
-    <div class="gacha-number" id="gachaNumber">?</div>
-    <div class="gacha-rate" id="gachaRate"></div>
-    <div class="gacha-msg" id="gachaMsg"></div>
-    <button onclick="closeGacha()">확인</button>
-  </div>
-</div>
-
 <audio id="doneSound" preload="auto">
   <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
 </audio>
@@ -84,55 +56,7 @@ function showMain() {
   document.getElementById('greeting').textContent = `안녕, ${sessionStorage.getItem('studentNickname')}!`;
   stopPolling = startPolling(loadToday, 7000);
   startPolling(loadEncouragements, 8000);
-  startPolling(checkDraw, 10000);
   loadPoints();
-}
-
-const GACHA_MESSAGES = {
-  normal: '오늘도 루틴을 했어요! 내일은 더 멋진 숫자가 나올 수 있어요 🌱',
-  special: '오늘 루틴을 정말 많이 했군요! 그래서 특별한 숫자가 나왔어요 🎉✨'
-};
-
-async function checkDraw() {
-  let draw;
-  try {
-    draw = await API.get(`/api/stats/draw?student_id=${studentId}`);
-  } catch (e) { return; }
-  if (!draw || !draw.number) return; // 아직 선생님이 하루 마감을 안 한 경우
-  const seenKey = `gachaSeen_${studentId}_${draw.date}`;
-  if (sessionStorage.getItem(seenKey)) return;
-  sessionStorage.setItem(seenKey, '1');
-  playGacha(draw);
-}
-
-function playGacha(draw) {
-  const overlay = document.getElementById('gachaOverlay');
-  const numberEl = document.getElementById('gachaNumber');
-  const rateEl = document.getElementById('gachaRate');
-  const msgEl = document.getElementById('gachaMsg');
-
-  numberEl.classList.remove('land');
-  numberEl.classList.add('spin');
-  rateEl.textContent = `오늘 루틴을 ${Math.round(draw.rate * 100)}%만큼 했어요 · 루틴을 많이 할수록 좋은 숫자가 나와요`;
-  msgEl.textContent = '';
-  overlay.classList.add('show');
-
-  let ticks = 0;
-  const spin = setInterval(() => {
-    numberEl.textContent = 1 + Math.floor(Math.random() * 5);
-    ticks++;
-    if (ticks > 14) {
-      clearInterval(spin);
-      numberEl.classList.remove('spin');
-      numberEl.textContent = draw.number;
-      numberEl.classList.add('land');
-      msgEl.textContent = GACHA_MESSAGES[draw.tier] || '';
-    }
-  }, 70);
-}
-
-function closeGacha() {
-  document.getElementById('gachaOverlay').classList.remove('show');
 }
 
 async function loadPoints() {

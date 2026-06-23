@@ -51,6 +51,24 @@
   .routine-stat-item .bar-fill { height: 100%; background: linear-gradient(90deg, #7bd389, #4a7cff); }
   .routine-stat-item .pct { font-weight: bold; min-width: 64px; text-align: right; }
 
+  .gacha-overlay {
+    position: fixed; inset: 0; background: rgba(10,12,18,0.88);
+    display: none; align-items: center; justify-content: center; z-index: 300; padding: 16px;
+  }
+  .gacha-overlay.show { display: flex; }
+  .gacha-card {
+    background: #2b3142; color: white; border-radius: 24px; padding: 40px 32px; text-align: center;
+    width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .gacha-title { color: #b9c4dd; font-size: 18px; margin-bottom: 8px; }
+  .gacha-number { font-size: 120px; font-weight: 800; margin: 12px 0; color: #7bd3ff; }
+  .gacha-number.spin { animation: gachaSpin 0.08s linear infinite; }
+  .gacha-number.land { animation: gachaLand 0.4s ease; }
+  @keyframes gachaSpin { from { transform: scale(1); } to { transform: scale(1.08); } }
+  @keyframes gachaLand { 0% { transform: scale(0.4) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.2) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+  .gacha-rate { font-size: 15px; color: #b9c4dd; margin-bottom: 14px; }
+  .gacha-msg { font-size: 20px; min-height: 50px; margin-bottom: 20px; }
+
   #routineView { display: none; }
   #routineView .topbar h1 { font-size: 1.8rem; text-align: left; }
   #routineView .routine-item { background: #2b3142; color: white; box-shadow: none; }
@@ -71,6 +89,10 @@
         <strong id="classGaugeLabel">0%</strong>
       </div>
       <p id="rewardText" style="color:#b9c4dd;"></p>
+      <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button id="classDrawBtn" onclick="startClassDraw()">오늘의 뽑기 뽑기! 🎁</button>
+        <span id="classDrawResult" style="font-size:14px; color:#b9c4dd;"></span>
+      </div>
     </div>
     <div class="tabbar">
       <button class="tab-btn active" id="tabStudents" onclick="switchTab('students')">학생별 보드</button>
@@ -97,6 +119,16 @@
       <button class="secondary" onclick="closeCodeOverlay()">취소</button>
       <button onclick="submitCode()">확인</button>
     </div>
+  </div>
+</div>
+
+<div class="gacha-overlay" id="gachaOverlay">
+  <div class="gacha-card">
+    <div class="gacha-title">오늘의 우리 반 뽑기 🎁</div>
+    <div class="gacha-number" id="gachaNumber">?</div>
+    <div class="gacha-rate" id="gachaRate"></div>
+    <div class="gacha-msg" id="gachaMsg"></div>
+    <button onclick="closeGacha()">확인</button>
   </div>
 </div>
 
@@ -136,6 +168,65 @@ async function loadBoard() {
   }).join('');
 
   renderRoutineStats(data.students);
+  loadClassDrawState();
+}
+
+const GACHA_MESSAGES = {
+  normal: '오늘도 우리 반이 루틴을 했어요! 내일은 더 멋진 숫자가 나올 수 있어요 🌱',
+  special: '오늘 우리 반이 루틴을 정말 많이 했어요! 그래서 특별한 숫자가 나왔어요 🎉✨'
+};
+
+async function loadClassDrawState() {
+  const draw = await API.get(`/api/stats/class-draw?class_id=${classId}`);
+  const btn = document.getElementById('classDrawBtn');
+  const resultEl = document.getElementById('classDrawResult');
+  if (draw && draw.number) {
+    btn.textContent = '오늘 뽑은 숫자 다시 보기 🎉';
+    resultEl.textContent = `오늘 뽑은 숫자: ${draw.number}`;
+  } else {
+    btn.textContent = '오늘의 뽑기 뽑기! 🎁';
+    resultEl.textContent = '';
+  }
+}
+
+async function startClassDraw() {
+  try {
+    const draw = await API.post('/api/stats/class-draw', { class_id: classId });
+    playGacha(draw);
+    loadClassDrawState();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function playGacha(draw) {
+  const overlay = document.getElementById('gachaOverlay');
+  const numberEl = document.getElementById('gachaNumber');
+  const rateEl = document.getElementById('gachaRate');
+  const msgEl = document.getElementById('gachaMsg');
+
+  numberEl.classList.remove('land');
+  numberEl.classList.add('spin');
+  rateEl.textContent = `오늘 우리 반이 루틴을 ${Math.round(draw.rate * 100)}%만큼 했어요 · 많이 할수록 좋은 숫자가 나와요`;
+  msgEl.textContent = '';
+  overlay.classList.add('show');
+
+  let ticks = 0;
+  const spin = setInterval(() => {
+    numberEl.textContent = 1 + Math.floor(Math.random() * 5);
+    ticks++;
+    if (ticks > 14) {
+      clearInterval(spin);
+      numberEl.classList.remove('spin');
+      numberEl.textContent = draw.number;
+      numberEl.classList.add('land');
+      msgEl.textContent = GACHA_MESSAGES[draw.tier] || '';
+    }
+  }, 70);
+}
+
+function closeGacha() {
+  document.getElementById('gachaOverlay').classList.remove('show');
 }
 
 function computeRoutineStats(students) {
