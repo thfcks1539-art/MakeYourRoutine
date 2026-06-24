@@ -12,9 +12,24 @@
   .gauge-bar { height: 40px; }
   #classGaugeLabel { font-size: 2rem; color: var(--color-duo-green); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
-  .student-card { cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+  .student-card { cursor: pointer; transition: transform 0.15s, border-color 0.15s; position: relative; }
   .student-card:active { transform: scale(0.96); }
   .student-card:hover { border-color: var(--color-sky-blue); }
+  .student-card.absent .ring { filter: grayscale(1); opacity: 0.4; }
+  .student-card.absent { border-color: var(--color-cloud-gray); }
+  .absent-badge {
+    position: absolute; top: -8px; left: -8px; width: 24px; height: 24px;
+    background: var(--color-graphite); border-radius: 50%; z-index: 2;
+    display: flex; align-items: center; justify-content: center; font-size: 13px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+  }
+  .absence-toggle {
+    position: absolute; top: 6px; right: 6px; z-index: 2;
+    background: var(--color-cloud-gray); color: var(--color-graphite);
+    border: none; border-radius: 10px; font-size: 11px; font-weight: 700;
+    padding: 4px 8px; cursor: pointer; box-shadow: none;
+  }
+  .student-card.absent .absence-toggle { background: var(--color-charcoal); color: #fff; }
   a.back { color: var(--color-sky-blue); font-weight: 700; }
   @media (max-width: 600px) {
     h1 { font-size: 1.6rem; }
@@ -75,7 +90,7 @@
 <body>
 <div class="container">
   <div id="boardView">
-    <a class="back" href="index.html">&larr; 대시보드</a>
+    <a class="back" href="index.html" id="backLink">&larr; 대시보드</a>
     <h1 id="className">우리 반 오늘의 루틴</h1>
     <div class="card">
       <div class="gauge-wrap">
@@ -135,8 +150,17 @@
 
 <script src="../shared/api.js"></script>
 <script>
-const classId = sessionStorage.getItem('teacherClassId');
-if (!classId) location.href = 'index.html';
+const teacherClassId = sessionStorage.getItem('teacherClassId');
+const studentClassId = sessionStorage.getItem('studentClassId');
+const classId = teacherClassId || studentClassId;
+const isTeacherMode = !!teacherClassId;
+if (!classId) location.href = '../index.html';
+
+const backLink = document.getElementById('backLink');
+if (!isTeacherMode) {
+  backLink.href = '../student/index.html';
+  backLink.textContent = '← 나의 루틴으로';
+}
 
 let stopBoardPolling = null;
 let stopRoutinePolling = null;
@@ -156,7 +180,10 @@ async function loadBoard() {
   const grid = document.getElementById('studentGrid');
   grid.innerHTML = data.students.map(s => {
     const rate = Math.round(s.rate * 100);
-    return `<div class="student-card" onclick="openCodeOverlay(${s.student_id}, '${s.nickname.replace(/'/g, "\\'")}')">
+    const nick = s.nickname.replace(/'/g, "\\'");
+    return `<div class="student-card ${s.is_absent ? 'absent' : ''}" onclick="openCodeOverlay(${s.student_id}, '${nick}')">
+      ${s.is_absent ? '<div class="absent-badge">🚫</div>' : ''}
+      ${isTeacherMode ? `<button class="absence-toggle" onclick="event.stopPropagation(); toggleAbsence(${s.student_id}, ${s.is_absent})">${s.is_absent ? '출석' : '결석'}</button>` : ''}
       <div class="ring" style="--rate:${rate}"><span>${rate}%</span></div>
       <div>${s.nickname}</div>
       <div class="msg">${s.message || ''}</div>
@@ -272,6 +299,15 @@ function switchTab(tab) {
   document.getElementById('routineStatsGrid').style.display = tab === 'routines' ? 'block' : 'none';
 }
 
+async function toggleAbsence(studentId, currentlyAbsent) {
+  try {
+    await API.post('/api/checks/absence', { student_id: studentId, absent: !currentlyAbsent });
+    loadBoard();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 function openCodeOverlay(studentId, nickname) {
   pendingStudent = { id: studentId, nickname };
   document.getElementById('codeOverlayName').textContent = `${nickname}, 내 코드를 입력해줘`;
@@ -347,7 +383,8 @@ async function loadToday() {
         <div class="title">
           ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
           ${r.carried_over ? '<div style="font-size:13px; color:#e0b25a; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
-          ${r.locked && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
+          ${r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">시작 시간(${r.start_time}) 전이에요</div>` : ''}
+          ${r.locked && !r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
         <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;

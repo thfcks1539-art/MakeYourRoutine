@@ -23,6 +23,7 @@
         <option value="하루">하루 종일</option>
       </select>
       <input id="rTarget" type="number" min="1" value="1" placeholder="목표 횟수" style="width:90px" />
+      <input id="rStart" type="time" title="이 시간 이전에는 체크할 수 없어요" style="width:140px" />
       <input id="rDeadline" type="time" title="이 시간 이후에는 체크할 수 없어요" style="width:140px" />
       <select id="rStudent"><option value="">공통 루틴 (전체 학생)</option></select>
     </div>
@@ -74,6 +75,7 @@ function resetForm() {
   document.getElementById('rIcon').value = '';
   document.getElementById('rTimeSlot').value = '오후';
   document.getElementById('rTarget').value = 1;
+  document.getElementById('rStart').value = '';
   document.getElementById('rDeadline').value = '';
   document.getElementById('rStudent').value = '';
   document.querySelectorAll('.dow').forEach(c => c.checked = true);
@@ -95,6 +97,7 @@ function editRoutine(id) {
   document.getElementById('rIcon').value = r.icon;
   document.getElementById('rTimeSlot').value = r.time_slot;
   document.getElementById('rTarget').value = r.target_count;
+  document.getElementById('rStart').value = r.start_time || '';
   document.getElementById('rDeadline').value = r.deadline_time || '';
   document.getElementById('rStudent').value = r.student_id || '';
   const days = r.days_of_week.split(',');
@@ -111,18 +114,20 @@ async function saveRoutine() {
   const icon = document.getElementById('rIcon').value.trim() || '✅';
   const time_slot = document.getElementById('rTimeSlot').value;
   const target_count = Number(document.getElementById('rTarget').value) || 1;
+  const start_time = document.getElementById('rStart').value || null;
   const deadline_time = document.getElementById('rDeadline').value || null;
   const studentId = document.getElementById('rStudent').value || null;
   const days = Array.from(document.querySelectorAll('.dow:checked')).map(c => c.value).join(',');
   if (!days) return alert('요일을 하나 이상 선택하세요');
+  if (start_time && deadline_time && start_time >= deadline_time) return alert('시작 시간은 마감 시간보다 빨라야 해요');
 
   try {
     if (editingId) {
-      await API.put(`/api/routines/${editingId}`, { title, icon, time_slot, target_count, deadline_time, days_of_week: days });
+      await API.put(`/api/routines/${editingId}`, { title, icon, time_slot, target_count, start_time, deadline_time, days_of_week: days });
     } else {
       await API.post('/api/routines', {
         class_id: classId, student_id: studentId,
-        title, icon, time_slot, target_count, deadline_time, days_of_week: days
+        title, icon, time_slot, target_count, start_time, deadline_time, days_of_week: days
       });
     }
   } catch (e) {
@@ -136,13 +141,14 @@ async function loadRoutines() {
   const routines = await API.get(`/api/routines?class_id=${classId}`);
   routinesCache = routines;
   const table = document.getElementById('routineTable');
-  table.innerHTML = '<tr><th>아이콘</th><th>이름</th><th>시간대</th><th>요일</th><th>목표</th><th>마감</th><th>대상</th><th></th></tr>' +
+  table.innerHTML = '<tr><th>아이콘</th><th>이름</th><th>시간대</th><th>요일</th><th>목표</th><th>시작</th><th>마감</th><th>대상</th><th></th></tr>' +
     routines.map(r => `<tr>
       <td>${r.icon}</td>
       <td>${r.title}</td>
       <td>${r.time_slot}</td>
       <td>${r.days_of_week.split(',').map(d => DOW_LABEL[d]).join(' ')}</td>
       <td>${r.target_count}</td>
+      <td>${r.start_time || '-'}</td>
       <td>${r.deadline_time || '-'}</td>
       <td>${r.student_id ? '개인' : '전체'}</td>
       <td>

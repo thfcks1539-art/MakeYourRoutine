@@ -24,6 +24,7 @@
       <div class="links">
         <a href="index.html">나의 루틴</a>
         <a href="class-board.html">우리 반 보드</a>
+        <a href="../teacher/board.html">전자칠판</a>
         <a href="me.html">나의 통계</a>
         <a href="#" onclick="logout(); location.href='../index.html';">처음으로</a>
         <a href="#" onclick="logout()">로그아웃</a>
@@ -131,7 +132,8 @@ async function loadToday() {
         <div class="title">
           ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
           ${r.carried_over ? '<div style="font-size:13px; color:#c98a1e; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
-          ${r.locked && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
+          ${r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">시작 시간(${r.start_time}) 전이에요</div>` : ''}
+          ${r.locked && !r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
         <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;

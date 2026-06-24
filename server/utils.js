@@ -28,6 +28,11 @@ function isPastDeadline(deadlineTime) {
   return nowHM() > deadlineTime;
 }
 
+function isBeforeStart(startTime) {
+  if (!startTime) return false;
+  return nowHM() < startTime;
+}
+
 // 가중치 배열 [[값, 가중치], ...] 중 하나를 가중 무작위로 선택
 function weightedPick(pairs) {
   const total = pairs.reduce((sum, [, w]) => sum + w, 0);
@@ -100,4 +105,4 @@ async function pickMessage(db, classId, rate) {
   return '';
 }
 
-module.exports = { todayStr, dowOf, addDays, genCode, pickMessage, nowHM, isPastDeadline, rollDrawNumber, normalizeDrawConfig, DEFAULT_DRAW_CONFIG };
+module.exports = { todayStr, dowOf, addDays, genCode, pickMessage, nowHM, isPastDeadline, isBeforeStart, rollDrawNumber, normalizeDrawConfig, DEFAULT_DRAW_CONFIG };

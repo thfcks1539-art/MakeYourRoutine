@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { todayStr, dowOf, addDays, isPastDeadline } = require('../utils');
+const { todayStr, dowOf, addDays, isPastDeadline, isBeforeStart } = require('../utils');
 const router = express.Router();
 
 async function activeRoutinesFor(classId, studentId, date) {
@@ -78,10 +78,18 @@ router.get('/today', async (req, res) => {
   const scheduledIds = new Set(routines.map(r => r.id));
 
   const checkMap = await ensureCheckRowsBatch(routines.map(r => r.id), student_id, date, false);
-  const scheduled = routines.map(r => ({ ...r, check: checkMap.get(r.id), carried_over: false, locked: isPastDeadline(r.deadline_time) }));
+  const scheduled = routines.map(r => ({
+    ...r, check: checkMap.get(r.id), carried_over: false,
+    not_started: isBeforeStart(r.start_time),
+    locked: isPastDeadline(r.deadline_time) || isBeforeStart(r.start_time)
+  }));
 
   const carriedRows = await carryOverRoutines(class_id, student_id, date, scheduledIds);
-  const carried = carriedRows.map(r => ({ ...r, carried_over: true, locked: isPastDeadline(r.deadline_time) }));
+  const carried = carriedRows.map(r => ({
+    ...r, carried_over: true,
+    not_started: isBeforeStart(r.start_time),
+    locked: isPastDeadline(r.deadline_time) || isBeforeStart(r.start_time)
+  }));
 
   const result = [...scheduled, ...carried].sort((a, b) => (a.sort_order - b.sort_order) || (a.id - b.id));
   res.json({ date, routines: result });
@@ -103,6 +111,9 @@ router.post('/toggle', async (req, res) => {
 
   const routine = routineRes.rows[0];
   if (!routine) return res.status(404).json({ error: 'routine not found' });
+  if (isBeforeStart(routine.start_time)) {
+    return res.status(403).json({ error: `시작 시간(${routine.start_time}) 이전에는 체크할 수 없어요` });
+  }
   if (isPastDeadline(routine.deadline_time)) {
     return res.status(403).json({ error: `마감 시간(${routine.deadline_time})이 지나서 체크할 수 없어요` });
   }
@@ -161,6 +172,19 @@ router.post('/toggle', async (req, res) => {
   await db.batch(writes);
 
   res.json({ count, completed: !!completed, target_count: routine.target_count, points: newPoints });
+});
+
+// 결석/등교 안 함 표시 토글 (전자칠판에서): 표시된 날은 루틴 %·게이지 계산에서 제외됨
+router.post('/absence', async (req, res) => {
+  const { student_id, absent } = req.body;
+  const date = req.body.date || todayStr();
+  if (absent) {
+    await db.prepare(`INSERT INTO student_absences (student_id, date) VALUES (?, ?) ON CONFLICT(student_id, date) DO NOTHING`)
+      .run(student_id, date);
+  } else {
+    await db.prepare(`DELETE FROM student_absences WHERE student_id = ? AND date = ?`).run(student_id, date);
+  }
+  res.json({ student_id, date, absent: !!absent });
 });
 
 // 한 줄 회고

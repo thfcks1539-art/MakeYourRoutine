@@ -23,8 +23,9 @@ function groupRoutinesByStudent(routines, students, dow) {
 }
 
 async function loadClassContext(classId, date, dow) {
-  const [students, routines, checks, tiers] = await Promise.all([
-    db.prepare(`SELECT id, nickname, number, points, avatar_json FROM students WHERE class_id = ? ORDER BY number ASC`).all(classId),
+  const [students, routines, checks, tiers, absences] = await Promise.all([
+    // routine_exempt(루틴을 할 수 없는 학생) 학생은 전자칠판/통계에 전혀 노출되지 않도록 조회 단계에서 제외
+    db.prepare(`SELECT id, nickname, number, points, avatar_json FROM students WHERE class_id = ? AND routine_exempt = 0 ORDER BY number ASC`).all(classId),
     db.prepare(`SELECT * FROM routines WHERE class_id = ? AND active = 1`).all(classId),
     db.prepare(
       `SELECT rc.* FROM routine_checks rc
@@ -33,7 +34,12 @@ async function loadClassContext(classId, date, dow) {
     ).all(classId, date),
     db.prepare(
       `SELECT * FROM encouragement_tiers WHERE class_id = ? OR class_id IS NULL ORDER BY (class_id IS NULL) ASC, sort_order ASC`
-    ).all(classId)
+    ).all(classId),
+    db.prepare(
+      `SELECT sa.student_id FROM student_absences sa
+       JOIN students s ON s.id = sa.student_id
+       WHERE s.class_id = ? AND sa.date = ?`
+    ).all(classId, date)
   ]);
 
   const routinesByStudent = groupRoutinesByStudent(routines, students, dow);
@@ -42,8 +48,9 @@ async function loadClassContext(classId, date, dow) {
     if (!checksByStudent.has(c.student_id)) checksByStudent.set(c.student_id, new Map());
     checksByStudent.get(c.student_id).set(c.routine_id, c);
   }
+  const absentSet = new Set(absences.map(a => a.student_id));
 
-  return { students, routinesByStudent, checksByStudent, tiers };
+  return { students, routinesByStudent, checksByStudent, tiers, absentSet };
 }
 
 // 교사 대시보드: 학급 전체 게이지 + 학생별 완료율 + 메시지
@@ -52,12 +59,13 @@ router.get('/dashboard', async (req, res) => {
   const date = req.query.date || todayStr();
   const dow = dowOf(date);
 
-  const { students, routinesByStudent, checksByStudent, tiers } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, tiers, absentSet } = await loadClassContext(classId, date, dow);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
 
   const studentStats = students.map(s => {
+    const isAbsent = absentSet.has(s.id);
     const routines = routinesByStudent.get(s.id) || [];
     const checkMap = checksByStudent.get(s.id) || new Map();
 
@@ -77,8 +85,11 @@ router.get('/dashboard', async (req, res) => {
     });
 
     const rate = routines.length ? completedCount / routines.length : 0;
-    totalRoutines += routines.length;
-    totalCompleted += completedCount;
+    // 결석한 학생은 학급 전체 % 집계에서 제외 (개인 게이지는 그대로 보여주되 비활성 표시만 함)
+    if (!isAbsent) {
+      totalRoutines += routines.length;
+      totalCompleted += completedCount;
+    }
 
     return {
       student_id: s.id,
@@ -89,7 +100,8 @@ router.get('/dashboard', async (req, res) => {
       rate,
       completed_count: completedCount,
       total_count: routines.length,
-      message: pickMessageFrom(tiers, classId, rate),
+      is_absent: isAbsent,
+      message: isAbsent ? '오늘은 결석이에요' : pickMessageFrom(tiers, classId, rate),
       routines: routineDetail
     };
   });
@@ -112,13 +124,14 @@ router.post('/day-end', async (req, res) => {
   const date = req.body.date || todayStr();
   const dow = dowOf(date);
 
-  const { students, routinesByStudent, checksByStudent } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, absentSet } = await loadClassContext(classId, date, dow);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
   let participants = 0;
 
   for (const s of students) {
+    if (absentSet.has(s.id)) continue;
     const routines = routinesByStudent.get(s.id) || [];
     if (!routines.length) continue;
     const checkMap = checksByStudent.get(s.id) || new Map();
@@ -153,13 +166,14 @@ router.post('/class-draw', async (req, res) => {
   const existing = await db.prepare(`SELECT date, rate, number, tier FROM class_draws WHERE class_id = ? AND date = ?`).get(classId, date);
   if (existing) return res.json(existing);
 
-  const { students, routinesByStudent, checksByStudent } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, absentSet } = await loadClassContext(classId, date, dow);
   const cls = await db.prepare(`SELECT draw_config_json FROM classes WHERE id = ?`).get(classId);
   const drawConfig = cls && cls.draw_config_json ? JSON.parse(cls.draw_config_json) : null;
 
   let totalRoutines = 0;
   let totalCompleted = 0;
   for (const s of students) {
+    if (absentSet.has(s.id)) continue;
     const routines = routinesByStudent.get(s.id) || [];
     const checkMap = checksByStudent.get(s.id) || new Map();
     totalRoutines += routines.length;

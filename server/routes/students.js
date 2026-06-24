@@ -6,14 +6,14 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   const classId = req.query.class_id;
   const rows = await db.prepare(
-    `SELECT id, class_id, nickname, number, login_code, points, avatar_json FROM students WHERE class_id = ? ORDER BY number ASC`
+    `SELECT id, class_id, nickname, number, login_code, points, avatar_json, routine_exempt FROM students WHERE class_id = ? ORDER BY number ASC`
   ).all(classId);
   res.json(rows);
 });
 
 router.get('/:id', async (req, res) => {
   const row = await db.prepare(
-    `SELECT id, class_id, nickname, number, points, avatar_json FROM students WHERE id = ?`
+    `SELECT id, class_id, nickname, number, points, avatar_json, routine_exempt FROM students WHERE id = ?`
   ).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'not found' });
   res.json(row);
@@ -23,6 +23,13 @@ router.put('/:id/avatar', async (req, res) => {
   const { avatar_json } = req.body;
   await db.prepare(`UPDATE students SET avatar_json = ? WHERE id = ?`).run(JSON.stringify(avatar_json || {}), req.params.id);
   res.json({ ok: true });
+});
+
+// 루틴을 할 수 없는 학생 예외 처리: 켜두면 전자칠판/통계의 루틴 % 집계에서 완전히 제외됨
+router.put('/:id/exempt', async (req, res) => {
+  const { routine_exempt } = req.body;
+  await db.prepare(`UPDATE students SET routine_exempt = ? WHERE id = ?`).run(routine_exempt ? 1 : 0, req.params.id);
+  res.json({ ok: true, routine_exempt: !!routine_exempt });
 });
 
 router.post('/', async (req, res) => {

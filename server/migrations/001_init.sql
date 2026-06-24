@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS routines (
   time_slot TEXT DEFAULT '하루',
   days_of_week TEXT DEFAULT '0,1,2,3,4,5,6',
   target_count INTEGER DEFAULT 1,
+  start_time TEXT,
   deadline_time TEXT,
   active INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
@@ -86,6 +87,13 @@ CREATE TABLE IF NOT EXISTS class_draws (
   tier TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE(class_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS student_absences (
+  student_id INTEGER NOT NULL REFERENCES students(id),
+  date TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (student_id, date)
 );
 
 CREATE TABLE IF NOT EXISTS daily_class_summary (
