@@ -8,14 +8,43 @@ router.get('/', async (req, res) => {
   let rows;
   if (studentId) {
     rows = await db.prepare(
-      `SELECT * FROM routines WHERE class_id = ? AND active = 1 AND (student_id IS NULL OR student_id = ?) ORDER BY sort_order ASC, id ASC`
-    ).all(classId, studentId);
+      `SELECT * FROM routines WHERE class_id = ? AND active = 1 AND (student_id IS NULL OR student_id = ?)
+       AND id NOT IN (SELECT routine_id FROM routine_exclusions WHERE student_id = ?)
+       ORDER BY sort_order ASC, id ASC`
+    ).all(classId, studentId, studentId);
   } else {
     rows = await db.prepare(
       `SELECT * FROM routines WHERE class_id = ? AND active = 1 ORDER BY sort_order ASC, id ASC`
     ).all(classId);
+    // 루틴 관리 화면에서 어떤 학생이 제외돼 있는지 보여주기 위해 함께 붙여줌
+    if (rows.length) {
+      const placeholders = rows.map(() => '?').join(',');
+      const exclusions = await db.prepare(
+        `SELECT routine_id, student_id FROM routine_exclusions WHERE routine_id IN (${placeholders})`
+      ).all(...rows.map(r => r.id));
+      const map = new Map();
+      for (const e of exclusions) {
+        if (!map.has(e.routine_id)) map.set(e.routine_id, []);
+        map.get(e.routine_id).push(e.student_id);
+      }
+      rows.forEach(r => { r.excluded_student_ids = map.get(r.id) || []; });
+    }
   }
   res.json(rows);
+});
+
+// 이 루틴에서 제외할 학생 목록을 통째로 교체 (체크된 학생들로 덮어씀)
+router.put('/:id/exclusions', async (req, res) => {
+  const { student_ids } = req.body;
+  const ids = Array.isArray(student_ids) ? student_ids.map(Number).filter(Number.isFinite) : [];
+  await db.prepare(`DELETE FROM routine_exclusions WHERE routine_id = ?`).run(req.params.id);
+  if (ids.length) {
+    const values = ids.map(() => '(?, ?)').join(', ');
+    const params = [];
+    ids.forEach(id => params.push(req.params.id, id));
+    await db.prepare(`INSERT INTO routine_exclusions (routine_id, student_id) VALUES ${values}`).run(...params);
+  }
+  res.json({ ok: true, excluded_student_ids: ids });
 });
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

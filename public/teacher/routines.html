@@ -37,6 +37,10 @@
       <label><input type="checkbox" class="dow" value="6" checked>토</label>
       <label><input type="checkbox" class="dow" value="0" checked>일</label>
     </div>
+    <div style="margin-top:10px;">
+      <label style="display:block; font-size:13px; color:var(--color-graphite); margin-bottom:4px;">이 루틴에서 제외할 학생 (체크한 학생에게는 이 루틴이 보이지 않아요)</label>
+      <div id="excludeList" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+    </div>
     <div style="margin-top:10px; display:flex; gap:8px;">
       <button id="saveBtn" onclick="saveRoutine()">루틴 추가</button>
       <button id="cancelEditBtn" class="secondary" style="display:none;" onclick="cancelEdit()">수정 취소</button>
@@ -56,15 +60,24 @@ if (!classId) location.href = 'index.html';
 
 const DOW_LABEL = { 0:'일',1:'월',2:'화',3:'수',4:'목',5:'금',6:'토' };
 
+let studentsCache = [];
+
 async function loadStudentOptions() {
-  const students = await API.get(`/api/students?class_id=${classId}`);
+  studentsCache = await API.get(`/api/students?class_id=${classId}`);
   const sel = document.getElementById('rStudent');
-  students.forEach(s => {
+  studentsCache.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.id;
     opt.textContent = `${s.nickname} (개인 루틴)`;
     sel.appendChild(opt);
   });
+
+  const excludeList = document.getElementById('excludeList');
+  excludeList.innerHTML = studentsCache.map(s => `
+    <label style="display:flex; align-items:center; gap:4px; font-size:14px;">
+      <input type="checkbox" class="exclude-student" value="${s.id}">${s.nickname}
+    </label>
+  `).join('');
 }
 
 let editingId = null;
@@ -79,6 +92,7 @@ function resetForm() {
   document.getElementById('rDeadline').value = '';
   document.getElementById('rStudent').value = '';
   document.querySelectorAll('.dow').forEach(c => c.checked = true);
+  document.querySelectorAll('.exclude-student').forEach(c => c.checked = false);
 }
 
 function cancelEdit() {
@@ -102,6 +116,8 @@ function editRoutine(id) {
   document.getElementById('rStudent').value = r.student_id || '';
   const days = r.days_of_week.split(',');
   document.querySelectorAll('.dow').forEach(c => { c.checked = days.includes(c.value); });
+  const excluded = (r.excluded_student_ids || []).map(String);
+  document.querySelectorAll('.exclude-student').forEach(c => { c.checked = excluded.includes(c.value); });
   document.getElementById('formTitle').textContent = '루틴 수정';
   document.getElementById('saveBtn').textContent = '수정 완료';
   document.getElementById('cancelEditBtn').style.display = 'inline-block';
@@ -120,16 +136,20 @@ async function saveRoutine() {
   const days = Array.from(document.querySelectorAll('.dow:checked')).map(c => c.value).join(',');
   if (!days) return alert('요일을 하나 이상 선택하세요');
   if (start_time && deadline_time && start_time >= deadline_time) return alert('시작 시간은 마감 시간보다 빨라야 해요');
+  const excludedIds = Array.from(document.querySelectorAll('.exclude-student:checked')).map(c => Number(c.value));
 
   try {
+    let routineId = editingId;
     if (editingId) {
       await API.put(`/api/routines/${editingId}`, { title, icon, time_slot, target_count, start_time, deadline_time, days_of_week: days });
     } else {
-      await API.post('/api/routines', {
+      const created = await API.post('/api/routines', {
         class_id: classId, student_id: studentId,
         title, icon, time_slot, target_count, start_time, deadline_time, days_of_week: days
       });
+      routineId = created.id;
     }
+    await API.put(`/api/routines/${routineId}/exclusions`, { student_ids: excludedIds });
   } catch (e) {
     return alert(e.message);
   }
@@ -141,7 +161,7 @@ async function loadRoutines() {
   const routines = await API.get(`/api/routines?class_id=${classId}`);
   routinesCache = routines;
   const table = document.getElementById('routineTable');
-  table.innerHTML = '<tr><th>아이콘</th><th>이름</th><th>시간대</th><th>요일</th><th>목표</th><th>시작</th><th>마감</th><th>대상</th><th></th></tr>' +
+  table.innerHTML = '<tr><th>아이콘</th><th>이름</th><th>시간대</th><th>요일</th><th>목표</th><th>시작</th><th>마감</th><th>대상</th><th>제외</th><th></th></tr>' +
     routines.map(r => `<tr>
       <td>${r.icon}</td>
       <td>${r.title}</td>
@@ -151,6 +171,7 @@ async function loadRoutines() {
       <td>${r.start_time || '-'}</td>
       <td>${r.deadline_time || '-'}</td>
       <td>${r.student_id ? '개인' : '전체'}</td>
+      <td>${(r.excluded_student_ids || []).length ? `${r.excluded_student_ids.length}명` : '-'}</td>
       <td>
         <button class="secondary" onclick="editRoutine(${r.id})">수정</button>
         <button class="secondary" onclick="removeRoutine(${r.id})">삭제</button>

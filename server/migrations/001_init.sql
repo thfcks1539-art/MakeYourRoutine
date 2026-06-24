@@ -89,6 +89,22 @@ CREATE TABLE IF NOT EXISTS class_draws (
   UNIQUE(class_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS routine_exclusions (
+  routine_id INTEGER NOT NULL REFERENCES routines(id),
+  student_id INTEGER NOT NULL REFERENCES students(id),
+  PRIMARY KEY (routine_id, student_id)
+);
+
+CREATE TABLE IF NOT EXISTS class_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  class_id INTEGER NOT NULL REFERENCES classes(id),
+  date TEXT NOT NULL,
+  type TEXT NOT NULL,
+  text TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS student_absences (
   student_id INTEGER NOT NULL REFERENCES students(id),
   date TEXT NOT NULL,

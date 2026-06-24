@@ -11,19 +11,21 @@ function pickMessageFrom(tiers, classId, rate) {
 }
 
 // 학급 전체 활성 루틴을 한 번에 가져와 학생별로 필터링할 수 있게 그룹화
-function groupRoutinesByStudent(routines, students, dow) {
+// (해당 학생이 그 루틴에서 제외되어 있으면 exclusionMap을 보고 목록에서 빼버림)
+function groupRoutinesByStudent(routines, students, dow, exclusionMap) {
   const scheduled = routines.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
   const common = scheduled.filter(r => r.student_id === null);
   const byStudent = new Map();
   for (const s of students) {
     const personal = scheduled.filter(r => r.student_id === s.id);
-    byStudent.set(s.id, [...common, ...personal]);
+    const applicableCommon = common.filter(r => !(exclusionMap.get(r.id) && exclusionMap.get(r.id).has(s.id)));
+    byStudent.set(s.id, [...applicableCommon, ...personal]);
   }
   return byStudent;
 }
 
 async function loadClassContext(classId, date, dow) {
-  const [students, routines, checks, tiers, absences] = await Promise.all([
+  const [students, routines, checks, tiers, absences, notes, cls, exclusions] = await Promise.all([
     // routine_exempt(루틴을 할 수 없는 학생) 학생은 전자칠판/통계에 전혀 노출되지 않도록 조회 단계에서 제외
     db.prepare(`SELECT id, nickname, number, points, avatar_json FROM students WHERE class_id = ? AND routine_exempt = 0 ORDER BY number ASC`).all(classId),
     db.prepare(`SELECT * FROM routines WHERE class_id = ? AND active = 1`).all(classId),
@@ -39,10 +41,22 @@ async function loadClassContext(classId, date, dow) {
       `SELECT sa.student_id FROM student_absences sa
        JOIN students s ON s.id = sa.student_id
        WHERE s.class_id = ? AND sa.date = ?`
-    ).all(classId, date)
+    ).all(classId, date),
+    db.prepare(`SELECT type FROM class_notes WHERE class_id = ? AND date = ?`).all(classId, date),
+    db.prepare(`SELECT praise_weight, concern_weight FROM classes WHERE id = ?`).get(classId),
+    db.prepare(
+      `SELECT re.routine_id, re.student_id FROM routine_exclusions re
+       JOIN routines r ON r.id = re.routine_id
+       WHERE r.class_id = ?`
+    ).all(classId)
   ]);
 
-  const routinesByStudent = groupRoutinesByStudent(routines, students, dow);
+  const exclusionMap = new Map();
+  for (const e of exclusions) {
+    if (!exclusionMap.has(e.routine_id)) exclusionMap.set(e.routine_id, new Set());
+    exclusionMap.get(e.routine_id).add(e.student_id);
+  }
+  const routinesByStudent = groupRoutinesByStudent(routines, students, dow, exclusionMap);
   const checksByStudent = new Map();
   for (const c of checks) {
     if (!checksByStudent.has(c.student_id)) checksByStudent.set(c.student_id, new Map());
@@ -50,7 +64,21 @@ async function loadClassContext(classId, date, dow) {
   }
   const absentSet = new Set(absences.map(a => a.student_id));
 
-  return { students, routinesByStudent, checksByStudent, tiers, absentSet };
+  // 학급 전체의 오늘 칭찬/아쉬움 횟수 집계 (각 횟수 * 가중치만큼 학급 루틴 %에 +/- 됨)
+  const noteCounts = { praise: 0, concern: 0 };
+  for (const n of notes) noteCounts[n.type === 'praise' ? 'praise' : 'concern']++;
+  const weights = {
+    praise: cls && cls.praise_weight != null ? cls.praise_weight : 0.05,
+    concern: cls && cls.concern_weight != null ? cls.concern_weight : 0.05
+  };
+
+  return { students, routinesByStudent, checksByStudent, tiers, absentSet, noteCounts, weights };
+}
+
+// 원래 완료율에 그날 학급 전체의 칭찬(+)/아쉬움(-) 횟수 * 가중치를 더해 0~1 사이로 보정
+function applyNoteAdjustment(rawRate, noteCounts, weights) {
+  const adjusted = rawRate + noteCounts.praise * weights.praise - noteCounts.concern * weights.concern;
+  return Math.max(0, Math.min(1, adjusted));
 }
 
 // 교사 대시보드: 학급 전체 게이지 + 학생별 완료율 + 메시지
@@ -59,7 +87,7 @@ router.get('/dashboard', async (req, res) => {
   const date = req.query.date || todayStr();
   const dow = dowOf(date);
 
-  const { students, routinesByStudent, checksByStudent, tiers, absentSet } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, tiers, absentSet, noteCounts, weights } = await loadClassContext(classId, date, dow);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
@@ -106,12 +134,15 @@ router.get('/dashboard', async (req, res) => {
     };
   });
 
-  const classRate = totalRoutines ? totalCompleted / totalRoutines : 0;
+  // 학급 전체 칭찬/아쉬움 기록은 학생 개개인이 아니라 학급 전체 루틴 %에만 반영됨
+  const rawClassRate = totalRoutines ? totalCompleted / totalRoutines : 0;
+  const classRate = applyNoteAdjustment(rawClassRate, noteCounts, weights);
   const cls = await db.prepare(`SELECT goal_gauge_target, reward_text FROM classes WHERE id = ?`).get(classId);
 
   res.json({
     date,
     class_rate: classRate,
+    class_note_counts: noteCounts,
     goal_gauge_target: cls ? cls.goal_gauge_target : 80,
     reward_text: cls ? cls.reward_text : null,
     students: studentStats
@@ -124,7 +155,7 @@ router.post('/day-end', async (req, res) => {
   const date = req.body.date || todayStr();
   const dow = dowOf(date);
 
-  const { students, routinesByStudent, checksByStudent, absentSet } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, absentSet, noteCounts, weights } = await loadClassContext(classId, date, dow);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
@@ -141,7 +172,7 @@ router.post('/day-end', async (req, res) => {
     if (completedCount > 0) participants++;
   }
 
-  const completionRate = totalRoutines ? totalCompleted / totalRoutines : 0;
+  const completionRate = applyNoteAdjustment(totalRoutines ? totalCompleted / totalRoutines : 0, noteCounts, weights);
 
   await db.prepare(
     `INSERT INTO daily_class_summary (class_id, date, total_routines, completed_routines, completion_rate, participants)
@@ -166,7 +197,7 @@ router.post('/class-draw', async (req, res) => {
   const existing = await db.prepare(`SELECT date, rate, number, tier FROM class_draws WHERE class_id = ? AND date = ?`).get(classId, date);
   if (existing) return res.json(existing);
 
-  const { students, routinesByStudent, checksByStudent, absentSet } = await loadClassContext(classId, date, dow);
+  const { students, routinesByStudent, checksByStudent, absentSet, noteCounts, weights } = await loadClassContext(classId, date, dow);
   const cls = await db.prepare(`SELECT draw_config_json FROM classes WHERE id = ?`).get(classId);
   const drawConfig = cls && cls.draw_config_json ? JSON.parse(cls.draw_config_json) : null;
 
@@ -179,7 +210,7 @@ router.post('/class-draw', async (req, res) => {
     totalRoutines += routines.length;
     totalCompleted += routines.reduce((n, r) => n + (checkMap.get(r.id)?.completed ? 1 : 0), 0);
   }
-  const rate = totalRoutines ? totalCompleted / totalRoutines : 0;
+  const rate = applyNoteAdjustment(totalRoutines ? totalCompleted / totalRoutines : 0, noteCounts, weights);
   const { number, tier } = rollDrawNumber(rate, drawConfig);
 
   await db.prepare(

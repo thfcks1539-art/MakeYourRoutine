@@ -130,31 +130,45 @@ async function loadToday() {
       return `<div class="routine-item">
         <div class="icon">${r.icon}</div>
         <div class="title">
-          ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
+          ${r.title}<span id="count-${r.id}">${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}</span>
           ${r.carried_over ? '<div style="font-size:13px; color:#c98a1e; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
           ${r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">시작 시간(${r.start_time}) 전이에요</div>` : ''}
           ${r.locked && !r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
-        <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
+        <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" data-target="${r.target_count}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;
     }).join('')}
   `).join('');
 }
 
-async function toggle(routineId, el) {
-  try {
-    const res = await API.post('/api/checks/toggle', { routine_id: routineId, student_id: studentId });
-    el.classList.add('bump');
-    setTimeout(() => el.classList.remove('bump'), 200);
-    if (res.completed) {
-      document.getElementById('doneSound').play().catch(() => {});
-      showToast('잘했어요! 완료했어요 🎉');
-    }
-    loadPoints();
-  } catch (e) {
-    alert(e.message);
-  }
-  loadToday();
+function toggle(routineId, el) {
+  // 서버 응답을 기다리지 않고 누르는 즉시 화면을 먼저 바꿔서(낙관적 업데이트) 반응이 느려 보이지 않게 함.
+  // 이전엔 toggle API 응답을 기다린 뒤 today 전체를 다시 불러와 화면을 다시 그렸는데,
+  // 원격 DB 왕복이 두 번(toggle + today) 걸려 체크표시가 뜨는 데 오래 걸렸음.
+  const wasDone = el.classList.contains('done');
+  el.classList.toggle('done', !wasDone);
+  el.textContent = !wasDone ? '✓' : '';
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 200);
+
+  API.post('/api/checks/toggle', { routine_id: routineId, student_id: studentId })
+    .then(res => {
+      el.classList.toggle('done', res.completed);
+      el.textContent = res.completed ? '✓' : '';
+      const target = Number(el.dataset.target || 1);
+      const countEl = document.getElementById(`count-${routineId}`);
+      if (countEl) countEl.textContent = target > 1 ? ` (${res.count}/${target})` : '';
+      if (res.completed) {
+        document.getElementById('doneSound').play().catch(() => {});
+        showToast('잘했어요! 완료했어요 🎉');
+      }
+      loadPoints();
+    })
+    .catch(e => {
+      el.classList.toggle('done', wasDone);
+      el.textContent = wasDone ? '✓' : '';
+      alert(e.message);
+    });
 }
 
 if (studentId) showMain(); else showLogin();

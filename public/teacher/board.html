@@ -6,6 +6,23 @@
 <title>전자칠판 모드</title>
 <link rel="stylesheet" href="../shared/common.css" />
 <style>
+  /* 다크 모드: common.css가 쓰는 색상 변수를 덮어써서 카드/버튼/글자색이 한번에 바뀌게 함 */
+  body.dark {
+    --color-snow-white: #1e2230;
+    --color-cloud-gray: #3a4156;
+    --color-silver: #8d93a6;
+    --color-graphite: #b3b9c9;
+    --color-charcoal: #e3e6ee;
+    --color-almost-black: #f5f6fa;
+    --color-duo-green-light: #234a17;
+  }
+  body.dark .note-btn.concern { background: #4a2024; color: #ff9b9b; }
+  .dark-toggle {
+    position: fixed; top: 14px; right: 14px; z-index: 50;
+    background: var(--color-cloud-gray); color: var(--color-graphite);
+    border: none; border-radius: 12px; font-size: 13px; font-weight: 700;
+    padding: 8px 14px; cursor: pointer; box-shadow: none;
+  }
   .container { max-width: 1400px; }
   h1 { font-size: 2.4rem; text-align: center; }
   .gauge-wrap { gap: 24px; }
@@ -30,6 +47,12 @@
     padding: 4px 8px; cursor: pointer; box-shadow: none;
   }
   .student-card.absent .absence-toggle { background: var(--color-charcoal); color: #fff; }
+  .note-btn {
+    appearance: none; border: none; cursor: pointer; box-shadow: none;
+    font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 10px;
+  }
+  .note-btn.praise { background: var(--color-duo-green-light); color: var(--color-duo-green-dark); }
+  .note-btn.concern { background: #fde2e2; color: #c0392b; }
   a.back { color: var(--color-sky-blue); font-weight: 700; }
   @media (max-width: 600px) {
     h1 { font-size: 1.6rem; }
@@ -88,6 +111,7 @@
 </style>
 </head>
 <body>
+<button class="dark-toggle" id="darkToggle" onclick="toggleDarkMode()">🌙 다크 모드</button>
 <div class="container">
   <div id="boardView">
     <a class="back" href="index.html" id="backLink">&larr; 대시보드</a>
@@ -98,9 +122,14 @@
         <strong id="classGaugeLabel">0%</strong>
       </div>
       <p id="rewardText" style="color:var(--color-graphite);"></p>
-      <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div id="classDrawBox" style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button id="classDrawBtn" onclick="startClassDraw()">오늘의 뽑기 뽑기! 🎁</button>
         <span id="classDrawResult" style="font-size:14px; color:var(--color-graphite);"></span>
+      </div>
+      <div id="classNoteBox" style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button class="note-btn praise" style="font-size:14px; padding:10px 16px;" onclick="openNoteOverlay('praise')">👍 우리 반 칭찬하기</button>
+        <button class="note-btn concern" style="font-size:14px; padding:10px 16px;" onclick="openNoteOverlay('concern')">😟 우리 반 아쉬운 점</button>
+        <span id="classNoteSummary" style="font-size:13px; color:var(--color-graphite);"></span>
       </div>
     </div>
     <div class="tabbar">
@@ -131,6 +160,17 @@
   </div>
 </div>
 
+<div class="overlay" id="noteOverlay">
+  <div class="card">
+    <h2 id="noteOverlayTitle">칭찬 한마디</h2>
+    <textarea id="noteText" placeholder="무엇이 좋았나요? (선택, 안 적어도 돼요)" style="width:100%; min-height:80px; font-family:inherit; font-size:14px; padding:10px; border:2px solid var(--color-cloud-gray); border-radius:12px;"></textarea>
+    <div class="actions">
+      <button class="secondary" onclick="closeNoteOverlay()">취소</button>
+      <button onclick="submitNote()">추가</button>
+    </div>
+  </div>
+</div>
+
 <div class="gacha-overlay" id="gachaOverlay">
   <div class="gacha-card">
     <div class="gacha-title">오늘의 우리 반 뽑기 🎁</div>
@@ -150,6 +190,17 @@
 
 <script src="../shared/api.js"></script>
 <script>
+function applyDarkMode(on) {
+  document.body.classList.toggle('dark', on);
+  document.getElementById('darkToggle').textContent = on ? '☀️ 라이트 모드' : '🌙 다크 모드';
+}
+function toggleDarkMode() {
+  const on = !document.body.classList.contains('dark');
+  localStorage.setItem('boardDarkMode', on ? '1' : '0');
+  applyDarkMode(on);
+}
+applyDarkMode(localStorage.getItem('boardDarkMode') === '1');
+
 const teacherClassId = sessionStorage.getItem('teacherClassId');
 const studentClassId = sessionStorage.getItem('studentClassId');
 const classId = teacherClassId || studentClassId;
@@ -160,6 +211,10 @@ const backLink = document.getElementById('backLink');
 if (!isTeacherMode) {
   backLink.href = '../student/index.html';
   backLink.textContent = '← 나의 루틴으로';
+  // 학생 모드에서는 학급 전체 뽑기, 칭찬/아쉬움 기록, 루틴별 통계 탭을 숨김 (교사 전용 기능)
+  document.getElementById('classDrawBox').style.display = 'none';
+  document.getElementById('classNoteBox').style.display = 'none';
+  document.getElementById('tabRoutines').style.display = 'none';
 }
 
 let stopBoardPolling = null;
@@ -176,6 +231,10 @@ async function loadBoard() {
   const pct = Math.round(data.class_rate * 100);
   document.getElementById('classGaugeFill').style.width = pct + '%';
   document.getElementById('classGaugeLabel').textContent = pct + '%';
+  if (isTeacherMode) {
+    const nc = data.class_note_counts || { praise: 0, concern: 0 };
+    document.getElementById('classNoteSummary').textContent = `오늘 칭찬 ${nc.praise}번 · 아쉬움 ${nc.concern}번`;
+  }
 
   const grid = document.getElementById('studentGrid');
   grid.innerHTML = data.students.map(s => {
@@ -190,8 +249,10 @@ async function loadBoard() {
     </div>`;
   }).join('');
 
-  renderRoutineStats(data.students);
-  loadClassDrawState();
+  if (isTeacherMode) {
+    renderRoutineStats(data.students);
+    loadClassDrawState();
+  }
 }
 
 const GACHA_MESSAGES = {
@@ -308,6 +369,31 @@ async function toggleAbsence(studentId, currentlyAbsent) {
   }
 }
 
+let pendingNoteType = null;
+function openNoteOverlay(type) {
+  pendingNoteType = type;
+  document.getElementById('noteOverlayTitle').textContent = type === 'praise' ? '우리 반 칭찬하기 👍' : '우리 반 아쉬운 점 😟';
+  document.getElementById('noteText').value = '';
+  document.getElementById('noteOverlay').classList.add('show');
+}
+
+function closeNoteOverlay() {
+  pendingNoteType = null;
+  document.getElementById('noteOverlay').classList.remove('show');
+}
+
+async function submitNote() {
+  if (!pendingNoteType) return;
+  const text = document.getElementById('noteText').value.trim();
+  try {
+    await API.post('/api/notes', { class_id: classId, type: pendingNoteType, text: text || null });
+    closeNoteOverlay();
+    loadBoard();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 function openCodeOverlay(studentId, nickname) {
   pendingStudent = { id: studentId, nickname };
   document.getElementById('codeOverlayName').textContent = `${nickname}, 내 코드를 입력해줘`;
@@ -381,30 +467,45 @@ async function loadToday() {
       return `<div class="routine-item">
         <div class="icon">${r.icon}</div>
         <div class="title">
-          ${r.title}${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}
+          ${r.title}<span id="count-${r.id}">${r.target_count > 1 ? ` (${r.check.count}/${r.target_count})` : ''}</span>
           ${r.carried_over ? '<div style="font-size:13px; color:#e0b25a; margin-top:2px;">어제 못한 일이에요, 오늘 해볼까요?</div>' : ''}
           ${r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">시작 시간(${r.start_time}) 전이에요</div>` : ''}
           ${r.locked && !r.not_started && !done ? `<div style="font-size:13px; color:#c0392b; margin-top:2px;">마감(${r.deadline_time}) 지났어요</div>` : ''}
         </div>
-        <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
+        <div class="check-btn ${done ? 'done' : ''} ${r.locked ? 'locked' : ''}" data-target="${r.target_count}" onclick="${r.locked ? '' : `toggle(${r.id}, this)`}">${done ? '✓' : (r.locked ? '🔒' : '')}</div>
       </div>`;
     }).join('')}
   `).join('');
 }
 
-async function toggle(routineId, el) {
-  try {
-    const res = await API.post('/api/checks/toggle', { routine_id: routineId, student_id: activeStudentId });
-    el.classList.add('bump');
-    setTimeout(() => el.classList.remove('bump'), 200);
-    if (res.completed) {
-      document.getElementById('doneSound').play().catch(() => {});
-      showToast('잘했어요! 완료했어요 🎉');
-    }
-  } catch (e) {
-    alert(e.message);
-  }
-  loadToday();
+function toggle(routineId, el) {
+  // 서버 응답을 기다리지 않고 누르는 즉시 화면을 먼저 바꿔서(낙관적 업데이트) 반응이 느려 보이지 않게 함.
+  // 이전엔 toggle API 응답을 기다린 뒤 today 전체를 다시 불러와 화면을 다시 그렸는데,
+  // 원격 DB 왕복이 두 번(toggle + today) 걸려 체크표시가 뜨는 데 오래 걸렸음.
+  const wasDone = el.classList.contains('done');
+  el.classList.toggle('done', !wasDone);
+  el.textContent = !wasDone ? '✓' : '';
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 200);
+
+  API.post('/api/checks/toggle', { routine_id: routineId, student_id: activeStudentId })
+    .then(res => {
+      // 실제 서버 상태로 보정 (횟수형 루틴처럼 추정과 다를 수 있는 부분까지 정확히 맞춤)
+      el.classList.toggle('done', res.completed);
+      el.textContent = res.completed ? '✓' : '';
+      const target = Number(el.dataset.target || 1);
+      const countEl = document.getElementById(`count-${routineId}`);
+      if (countEl) countEl.textContent = target > 1 ? ` (${res.count}/${target})` : '';
+      if (res.completed) {
+        document.getElementById('doneSound').play().catch(() => {});
+        showToast('잘했어요! 완료했어요 🎉');
+      }
+    })
+    .catch(e => {
+      el.classList.toggle('done', wasDone);
+      el.textContent = wasDone ? '✓' : '';
+      alert(e.message);
+    });
 }
 
 stopBoardPolling = startPolling(loadBoard, 5000);

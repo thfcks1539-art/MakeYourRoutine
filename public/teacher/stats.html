@@ -24,6 +24,27 @@
   </div>
 
   <div class="card">
+    <h2>칭찬/아쉬움 가중치 설정</h2>
+    <p style="font-size:13px; color:var(--color-silver); margin-top:0;">
+      전자칠판에서 학생에게 칭찬이나 아쉬운 점을 기록하면, 그날 루틴 %에 아래 가중치만큼 더해지거나 빠져요.
+    </p>
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">칭찬 1번당 더해지는 % (+)</label>
+    <input id="praiseWeight" type="number" min="0" max="100" step="1" placeholder="예: 5" style="width:100px;" /> %
+
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">아쉬움 1번당 빠지는 % (-)</label>
+    <input id="concernWeight" type="number" min="0" max="100" step="1" placeholder="예: 5" style="width:100px;" /> %
+
+    <div style="margin-top:14px;">
+      <button onclick="saveNoteWeights()">가중치 저장</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>칭찬/아쉬움 기록 (최근 14일)</h2>
+    <div id="noteList" class="table-scroll"></div>
+  </div>
+
+  <div class="card">
     <h2>뽑기 설정</h2>
     <p style="font-size:13px; color:var(--color-silver); margin-top:0;">
       하루를 마감하면 학생들이 "오늘 루틴을 한 만큼"에 따라 숫자 뽑기를 해요.
@@ -90,6 +111,93 @@ async function loadGoal() {
   document.getElementById('drawThreshold').value = Math.round(draw.threshold * 100);
   document.getElementById('drawMinChance').value = Math.round(draw.minChance * 100);
   document.getElementById('drawMaxChance').value = Math.round(draw.maxChance * 100);
+
+  document.getElementById('praiseWeight').value = Math.round((cls.praise_weight ?? 0.05) * 100);
+  document.getElementById('concernWeight').value = Math.round((cls.concern_weight ?? 0.05) * 100);
+}
+
+async function saveNoteWeights() {
+  const praise_weight = Number(document.getElementById('praiseWeight').value) / 100;
+  const concern_weight = Number(document.getElementById('concernWeight').value) / 100;
+  if (!Number.isFinite(praise_weight) || praise_weight < 0 || !Number.isFinite(concern_weight) || concern_weight < 0) {
+    return alert('0 이상의 숫자를 입력해주세요');
+  }
+  try {
+    await API.put(`/api/classes/${classId}`, { praise_weight, concern_weight });
+    alert('가중치를 저장했어요');
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+let notesCache = [];
+let editingNoteId = null;
+
+async function loadNotes() {
+  notesCache = await API.get(`/api/notes?class_id=${classId}&days=14`);
+  renderNoteList();
+}
+
+function renderNoteList() {
+  const el = document.getElementById('noteList');
+  if (!notesCache.length) {
+    el.innerHTML = '<p style="color:var(--color-silver); font-size:13px;">아직 기록이 없어요</p>';
+    return;
+  }
+  el.innerHTML = notesCache.map(n => {
+    const badge = n.type === 'praise'
+      ? `<span style="background:var(--color-duo-green-light); color:var(--color-duo-green-dark); font-size:12px; font-weight:700; padding:3px 8px; border-radius:10px;">👍 칭찬</span>`
+      : `<span style="background:#fde2e2; color:#c0392b; font-size:12px; font-weight:700; padding:3px 8px; border-radius:10px;">😟 아쉬움</span>`;
+
+    if (editingNoteId === n.id) {
+      return `<div style="padding:10px 0; border-bottom:1px solid var(--color-cloud-gray);">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">${badge}<span style="font-size:12px; color:var(--color-silver);">${n.date}</span></div>
+        <textarea id="editText-${n.id}" style="width:100%; min-height:60px; font-family:inherit; font-size:14px; padding:8px; border:2px solid var(--color-cloud-gray); border-radius:10px;">${n.text || ''}</textarea>
+        <div style="margin-top:6px; display:flex; gap:8px;">
+          <button class="secondary" onclick="cancelEditNote()">취소</button>
+          <button onclick="saveNoteEdit(${n.id})">저장</button>
+        </div>
+      </div>`;
+    }
+
+    return `<div style="padding:10px 0; border-bottom:1px solid var(--color-cloud-gray); display:flex; align-items:flex-start; gap:10px;">
+      <div style="flex:1;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">${badge}<span style="font-size:12px; color:var(--color-silver);">${n.date}</span></div>
+        <div style="font-size:14px; color:var(--color-charcoal);">${n.text || '(내용 없음)'}</div>
+      </div>
+      <div style="display:flex; gap:6px; flex:none;">
+        <button class="secondary" style="font-size:12px; padding:6px 10px;" onclick="startEditNote(${n.id})">수정</button>
+        <button class="secondary" style="font-size:12px; padding:6px 10px;" onclick="deleteNote(${n.id})">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function startEditNote(id) {
+  editingNoteId = id;
+  renderNoteList();
+}
+
+function cancelEditNote() {
+  editingNoteId = null;
+  renderNoteList();
+}
+
+async function saveNoteEdit(id) {
+  const text = document.getElementById(`editText-${id}`).value.trim();
+  try {
+    await API.put(`/api/notes/${id}`, { text: text || null });
+    editingNoteId = null;
+    loadNotes();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function deleteNote(id) {
+  if (!confirm('이 기록을 삭제할까요? 그날의 루틴 %에서도 영향이 사라져요.')) return;
+  await API.del(`/api/notes/${id}`);
+  loadNotes();
 }
 
 async function saveGoal() {
@@ -130,6 +238,7 @@ function downloadCsv() {
 
 loadWeekly();
 loadGoal();
+loadNotes();
 </script>
 </body>
 </html>

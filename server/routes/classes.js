@@ -25,7 +25,7 @@ router.post('/:id/login', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const cls = await db.prepare(`SELECT id, name, goal_gauge_target, reward_text, draw_config_json, created_at FROM classes WHERE id = ?`).get(req.params.id);
+  const cls = await db.prepare(`SELECT id, name, goal_gauge_target, reward_text, draw_config_json, praise_weight, concern_weight, created_at FROM classes WHERE id = ?`).get(req.params.id);
   if (!cls) return res.status(404).json({ error: 'not found' });
   const draw_config = cls.draw_config_json ? JSON.parse(cls.draw_config_json) : DEFAULT_DRAW_CONFIG;
   delete cls.draw_config_json;
@@ -33,7 +33,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { goal_gauge_target, reward_text, draw_config } = req.body;
+  const { goal_gauge_target, reward_text, draw_config, praise_weight, concern_weight } = req.body;
   let drawConfigJson;
   if (draw_config) {
     const lowNumbers = (draw_config.lowNumbers || []).map(Number).filter(n => Number.isFinite(n));
@@ -49,13 +49,21 @@ router.put('/:id', async (req, res) => {
       maxChance: Number(draw_config.maxChance)
     });
   }
+  if (praise_weight !== undefined && praise_weight !== null && (typeof praise_weight !== 'number' || praise_weight < 0)) {
+    return res.status(400).json({ error: '칭찬 가중치는 0 이상의 숫자여야 해요' });
+  }
+  if (concern_weight !== undefined && concern_weight !== null && (typeof concern_weight !== 'number' || concern_weight < 0)) {
+    return res.status(400).json({ error: '아쉬움 가중치는 0 이상의 숫자여야 해요' });
+  }
   await db.prepare(
     `UPDATE classes SET
        goal_gauge_target = COALESCE(?, goal_gauge_target),
        reward_text = COALESCE(?, reward_text),
-       draw_config_json = COALESCE(?, draw_config_json)
+       draw_config_json = COALESCE(?, draw_config_json),
+       praise_weight = COALESCE(?, praise_weight),
+       concern_weight = COALESCE(?, concern_weight)
      WHERE id = ?`
-  ).run(goal_gauge_target ?? null, reward_text ?? null, drawConfigJson ?? null, req.params.id);
+  ).run(goal_gauge_target ?? null, reward_text ?? null, drawConfigJson ?? null, praise_weight ?? null, concern_weight ?? null, req.params.id);
   res.json({ ok: true });
 });
 

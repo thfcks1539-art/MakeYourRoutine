@@ -85,6 +85,8 @@ function init() {
       await ensureColumn('routines', 'start_time', 'start_time TEXT');
       await ensureColumn('classes', 'draw_config_json', 'draw_config_json TEXT');
       await ensureColumn('students', 'routine_exempt', 'routine_exempt INTEGER DEFAULT 0');
+      await ensureColumn('classes', 'praise_weight', 'praise_weight REAL DEFAULT 0.05');
+      await ensureColumn('classes', 'concern_weight', 'concern_weight REAL DEFAULT 0.05');
     })();
   }
   return ready;
