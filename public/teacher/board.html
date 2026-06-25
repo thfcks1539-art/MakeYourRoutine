@@ -124,6 +124,7 @@
       <p id="rewardText" style="color:var(--color-graphite);"></p>
       <div id="classDrawBox" style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button id="classDrawBtn" onclick="startClassDraw()">오늘의 뽑기 뽑기! 🎁</button>
+        <button id="classDrawResetBtn" onclick="resetClassDraw()" style="display:none;">초기화 🔄</button>
         <span id="classDrawResult" style="font-size:14px; color:var(--color-graphite);"></span>
       </div>
       <div id="classNoteBox" style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -263,13 +264,26 @@ const GACHA_MESSAGES = {
 async function loadClassDrawState() {
   const draw = await API.get(`/api/stats/class-draw?class_id=${classId}`);
   const btn = document.getElementById('classDrawBtn');
+  const resetBtn = document.getElementById('classDrawResetBtn');
   const resultEl = document.getElementById('classDrawResult');
   if (draw && draw.number) {
     btn.textContent = '오늘 뽑은 숫자 다시 보기 🎉';
     resultEl.textContent = `오늘 뽑은 숫자: ${draw.number}`;
+    resetBtn.style.display = '';
   } else {
     btn.textContent = '오늘의 뽑기 뽑기! 🎁';
     resultEl.textContent = '';
+    resetBtn.style.display = 'none';
+  }
+}
+
+async function resetClassDraw() {
+  if (!confirm('오늘 뽑은 숫자를 초기화할까요? 다시 뽑을 수 있게 됩니다.')) return;
+  try {
+    await API.del(`/api/stats/class-draw?class_id=${classId}`);
+    loadClassDrawState();
+  } catch (e) {
+    alert(e.message);
   }
 }
 

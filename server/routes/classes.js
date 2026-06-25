@@ -33,7 +33,15 @@ router.get('/:id', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { goal_gauge_target, reward_text, draw_config, praise_weight, concern_weight } = req.body;
+  const { goal_gauge_target, reward_text, draw_config, praise_weight, concern_weight, current_pin, new_pin } = req.body;
+  let newPinValue;
+  if (new_pin !== undefined) {
+    if (!current_pin || !new_pin) return res.status(400).json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요' });
+    const cls = await db.prepare(`SELECT teacher_pin FROM classes WHERE id = ?`).get(req.params.id);
+    if (!cls) return res.status(404).json({ error: 'not found' });
+    if (cls.teacher_pin !== current_pin) return res.status(401).json({ error: '현재 비밀번호가 일치하지 않습니다' });
+    newPinValue = new_pin;
+  }
   let drawConfigJson;
   if (draw_config) {
     const lowNumbers = (draw_config.lowNumbers || []).map(Number).filter(n => Number.isFinite(n));
@@ -61,9 +69,10 @@ router.put('/:id', async (req, res) => {
        reward_text = COALESCE(?, reward_text),
        draw_config_json = COALESCE(?, draw_config_json),
        praise_weight = COALESCE(?, praise_weight),
-       concern_weight = COALESCE(?, concern_weight)
+       concern_weight = COALESCE(?, concern_weight),
+       teacher_pin = COALESCE(?, teacher_pin)
      WHERE id = ?`
-  ).run(goal_gauge_target ?? null, reward_text ?? null, drawConfigJson ?? null, praise_weight ?? null, concern_weight ?? null, req.params.id);
+  ).run(goal_gauge_target ?? null, reward_text ?? null, drawConfigJson ?? null, praise_weight ?? null, concern_weight ?? null, newPinValue ?? null, req.params.id);
   res.json({ ok: true });
 });
 

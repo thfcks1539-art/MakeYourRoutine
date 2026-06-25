@@ -229,6 +229,14 @@ router.get('/class-draw', async (req, res) => {
   res.json(row || null);
 });
 
+// 오늘 학급 뽑기 결과 초기화 (다시 뽑을 수 있게 함)
+router.delete('/class-draw', async (req, res) => {
+  const { class_id } = req.query;
+  const date = req.query.date || todayStr();
+  await db.prepare(`DELETE FROM class_draws WHERE class_id = ? AND date = ?`).run(class_id, date);
+  res.json({ ok: true });
+});
+
 router.get('/weekly', async (req, res) => {
   const classId = req.query.class_id;
   const days = Number(req.query.days || 7);

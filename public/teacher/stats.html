@@ -77,6 +77,22 @@
   </div>
 
   <div class="card">
+    <h2>비밀번호 변경</h2>
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">현재 비밀번호</label>
+    <input id="currentPin" type="password" placeholder="현재 비밀번호" style="width:100%; max-width:260px;" />
+
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">새 비밀번호</label>
+    <input id="newPin" type="password" placeholder="새 비밀번호" style="width:100%; max-width:260px;" />
+
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">새 비밀번호 확인</label>
+    <input id="newPinConfirm" type="password" placeholder="새 비밀번호 확인" style="width:100%; max-width:260px;" />
+
+    <div style="margin-top:14px;">
+      <button onclick="changePin()">비밀번호 변경</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>데이터 내보내기</h2>
     <button onclick="downloadCsv()">CSV 다운로드</button>
   </div>
@@ -227,6 +243,23 @@ async function saveDrawConfig() {
   try {
     await API.put(`/api/classes/${classId}`, { draw_config });
     alert('뽑기 설정을 저장했어요');
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function changePin() {
+  const current_pin = document.getElementById('currentPin').value.trim();
+  const new_pin = document.getElementById('newPin').value.trim();
+  const new_pin_confirm = document.getElementById('newPinConfirm').value.trim();
+  if (!current_pin || !new_pin) return alert('현재 비밀번호와 새 비밀번호를 입력해주세요');
+  if (new_pin !== new_pin_confirm) return alert('새 비밀번호가 서로 일치하지 않습니다');
+  try {
+    await API.put(`/api/classes/${classId}`, { current_pin, new_pin });
+    alert('비밀번호를 변경했어요');
+    document.getElementById('currentPin').value = '';
+    document.getElementById('newPin').value = '';
+    document.getElementById('newPinConfirm').value = '';
   } catch (e) {
     alert(e.message);
   }

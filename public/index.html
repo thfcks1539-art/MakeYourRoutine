@@ -11,8 +11,37 @@
   <h1 class="brand-title" style="margin-bottom:24px;">우리 반 루틴</h1>
   <div class="card">
     <a href="teacher/index.html"><button style="width:100%; margin-bottom:10px;">교사로 시작하기</button></a>
-    <a href="student/index.html"><button class="secondary" style="width:100%;">학생으로 시작하기</button></a>
+    <button class="secondary" style="width:100%;" onclick="showStudentClassList()">학생으로 시작하기</button>
+    <div id="studentClassListBox" style="display:none; margin-top:14px; text-align:left;"></div>
   </div>
 </div>
+
+<script src="shared/api.js"></script>
+<script>
+async function showStudentClassList() {
+  const box = document.getElementById('studentClassListBox');
+  box.style.display = 'block';
+  box.innerHTML = '<p style="color:var(--color-silver);">학급 목록을 불러오는 중...</p>';
+  try {
+    const classes = await API.get('/api/classes');
+    if (!classes.length) {
+      box.innerHTML = '<p style="color:var(--color-silver);">아직 만들어진 학급이 없어요.</p>';
+      return;
+    }
+    box.innerHTML = '<p style="font-size:14px; color:var(--color-graphite);">우리 반을 선택하세요</p>' + classes.map(c =>
+      `<button class="secondary" style="display:block; width:100%; text-align:left; margin-bottom:6px;" onclick="enterStudentBoard(${c.id})">${c.name}</button>`
+    ).join('');
+  } catch (e) {
+    box.innerHTML = `<p style="color:#c0392b;">${e.message}</p>`;
+  }
+}
+
+function enterStudentBoard(classId) {
+  sessionStorage.removeItem('studentId');
+  sessionStorage.removeItem('studentNickname');
+  sessionStorage.setItem('studentClassId', classId);
+  location.href = 'teacher/board.html';
+}
+</script>
 </body>
 </html>
