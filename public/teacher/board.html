@@ -17,11 +17,17 @@
     --color-duo-green-light: #234a17;
   }
   body.dark .note-btn.concern { background: #4a2024; color: #ff9b9b; }
+  .dark-toggle-bar {
+    display: flex; justify-content: flex-end;
+    max-width: 1400px; margin: 0 auto; padding: 14px 24px 0;
+  }
   .dark-toggle {
-    position: fixed; top: 14px; right: 14px; z-index: 50;
     background: var(--color-cloud-gray); color: var(--color-graphite);
     border: none; border-radius: 12px; font-size: 13px; font-weight: 700;
-    padding: 8px 14px; cursor: pointer; box-shadow: none;
+    padding: 8px 14px; cursor: pointer; box-shadow: none; width: auto;
+  }
+  @media (max-width: 600px) {
+    .dark-toggle-bar { padding: 10px 12px 0; }
   }
   .container { max-width: 1400px; }
   h1 { font-size: 2.4rem; text-align: center; }
@@ -111,7 +117,9 @@
 </style>
 </head>
 <body>
-<button class="dark-toggle" id="darkToggle" onclick="toggleDarkMode()">🌙 다크 모드</button>
+<div class="dark-toggle-bar">
+  <button class="dark-toggle" id="darkToggle" onclick="toggleDarkMode()">🌙 다크 모드</button>
+</div>
 <div class="container">
   <div id="boardView">
     <a class="back" href="index.html" id="backLink">&larr; 대시보드</a>
