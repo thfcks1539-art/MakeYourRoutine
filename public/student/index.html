@@ -55,8 +55,8 @@ function showMain() {
   document.getElementById('loginView').style.display = 'none';
   document.getElementById('mainView').style.display = 'block';
   document.getElementById('greeting').textContent = `안녕, ${sessionStorage.getItem('studentNickname')}!`;
-  stopPolling = startPolling(loadToday, 7000);
-  startPolling(loadEncouragements, 8000);
+  stopPolling = startPolling(loadToday, 30000);
+  startPolling(loadEncouragements, 30000);
   loadPoints();
 }
 

@@ -21,6 +21,8 @@ const API = {
 
 function startPolling(fn, intervalMs) {
   fn();
-  const id = setInterval(fn, intervalMs);
+  const id = setInterval(() => {
+    if (document.visibilityState !== 'hidden') fn();
+  }, intervalMs);
   return () => clearInterval(id);
 }

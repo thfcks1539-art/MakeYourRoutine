@@ -98,7 +98,7 @@ function showMain() {
   document.getElementById('mainView').style.display = 'block';
   loadClassInfo();
   loadStudents();
-  stopPolling = startPolling(loadDashboard, 5000);
+  stopPolling = startPolling(loadDashboard, 20000);
 }
 
 async function createClass() {

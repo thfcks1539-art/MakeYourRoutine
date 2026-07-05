@@ -33,7 +33,7 @@ const classId = sessionStorage.getItem('studentClassId');
 if (!classId) location.href = 'index.html';
 
 async function load() {
-  const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
+  const data = await API.get(`/api/stats/board?class_id=${classId}`);
   const pct = Math.round(data.class_rate * 100);
   document.getElementById('classGaugeFill').style.width = pct + '%';
   document.getElementById('classGaugeLabel').textContent = pct + '%';
@@ -58,7 +58,7 @@ function renderAvatar(avatarJson) {
   return `${avatarJson.hat || ''}${avatarJson.face || '🙂'}`;
 }
 
-startPolling(load, 7000);
+startPolling(load, 30000);
 </script>
 </body>
 </html>

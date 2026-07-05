@@ -82,12 +82,69 @@ function applyNoteAdjustment(rawRate, noteCounts, weights) {
 }
 
 // 교사 대시보드: 학급 전체 게이지 + 학생별 완료율 + 메시지
-router.get('/dashboard', async (req, res) => {
+router.get('/board', async (req, res) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=10');
   const classId = req.query.class_id;
   const date = req.query.date || todayStr();
   const dow = dowOf(date);
 
-  const { students, routinesByStudent, checksByStudent, tiers, absentSet, noteCounts, weights } = await loadClassContext(classId, date, dow);
+  const [students, routines, checks, absences, notes, cls, exclusions] = await Promise.all([
+    db.prepare(`SELECT id, nickname, avatar_json FROM students WHERE class_id = ? AND routine_exempt = 0 ORDER BY number ASC`).all(classId),
+    db.prepare(`SELECT id, student_id, days_of_week FROM routines WHERE class_id = ? AND active = 1`).all(classId),
+    db.prepare(`SELECT rc.routine_id, rc.student_id, rc.completed FROM routine_checks rc JOIN students s ON s.id = rc.student_id WHERE s.class_id = ? AND rc.date = ?`).all(classId, date),
+    db.prepare(`SELECT sa.student_id FROM student_absences sa JOIN students s ON s.id = sa.student_id WHERE s.class_id = ? AND sa.date = ?`).all(classId, date),
+    db.prepare(`SELECT type FROM class_notes WHERE class_id = ? AND date = ?`).all(classId, date),
+    db.prepare(`SELECT praise_weight, concern_weight, reward_text FROM classes WHERE id = ?`).get(classId),
+    db.prepare(`SELECT re.routine_id, re.student_id FROM routine_exclusions re JOIN routines r ON r.id = re.routine_id WHERE r.class_id = ?`).all(classId)
+  ]);
+
+  const exclusionMap = new Map();
+  for (const e of exclusions) {
+    if (!exclusionMap.has(e.routine_id)) exclusionMap.set(e.routine_id, new Set());
+    exclusionMap.get(e.routine_id).add(e.student_id);
+  }
+  const absentSet = new Set(absences.map(a => a.student_id));
+  const noteCounts = { praise: 0, concern: 0 };
+  for (const n of notes) noteCounts[n.type === 'praise' ? 'praise' : 'concern']++;
+  const weights = {
+    praise: cls && cls.praise_weight != null ? cls.praise_weight : 0.05,
+    concern: cls && cls.concern_weight != null ? cls.concern_weight : 0.05
+  };
+
+  const scheduled = routines.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
+  const common = scheduled.filter(r => r.student_id === null);
+  const checksByStudent = new Map();
+  for (const c of checks) {
+    if (!checksByStudent.has(c.student_id)) checksByStudent.set(c.student_id, new Map());
+    checksByStudent.get(c.student_id).set(c.routine_id, c);
+  }
+
+  let totalRoutines = 0, totalCompleted = 0;
+  const studentStats = students.map(s => {
+    const personal = scheduled.filter(r => r.student_id === s.id);
+    const applicable = common.filter(r => !(exclusionMap.get(r.id) && exclusionMap.get(r.id).has(s.id)));
+    const myRoutines = [...applicable, ...personal];
+    const checkMap = checksByStudent.get(s.id) || new Map();
+    const completedCount = myRoutines.reduce((n, r) => n + (checkMap.get(r.id)?.completed ? 1 : 0), 0);
+    const rate = myRoutines.length ? completedCount / myRoutines.length : 0;
+    if (!absentSet.has(s.id)) { totalRoutines += myRoutines.length; totalCompleted += completedCount; }
+    return { id: s.id, nickname: s.nickname, avatar_json: s.avatar_json ? JSON.parse(s.avatar_json) : null, rate };
+  });
+
+  const classRate = applyNoteAdjustment(totalRoutines ? totalCompleted / totalRoutines : 0, noteCounts, weights);
+  res.json({ class_rate: classRate, reward_text: cls ? cls.reward_text : null, students: studentStats });
+});
+
+router.get('/dashboard', async (req, res) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=10');
+  const classId = req.query.class_id;
+  const date = req.query.date || todayStr();
+  const dow = dowOf(date);
+
+  const [{ students, routinesByStudent, checksByStudent, tiers, absentSet, noteCounts, weights }, cls] = await Promise.all([
+    loadClassContext(classId, date, dow),
+    db.prepare(`SELECT goal_gauge_target, reward_text FROM classes WHERE id = ?`).get(classId)
+  ]);
 
   let totalRoutines = 0;
   let totalCompleted = 0;
@@ -137,7 +194,6 @@ router.get('/dashboard', async (req, res) => {
   // 학급 전체 칭찬/아쉬움 기록은 학생 개개인이 아니라 학급 전체 루틴 %에만 반영됨
   const rawClassRate = totalRoutines ? totalCompleted / totalRoutines : 0;
   const classRate = applyNoteAdjustment(rawClassRate, noteCounts, weights);
-  const cls = await db.prepare(`SELECT goal_gauge_target, reward_text FROM classes WHERE id = ?`).get(classId);
 
   res.json({
     date,

@@ -232,14 +232,11 @@ let pendingStudent = null;
 let activeStudentId = null;
 
 async function loadBoard() {
-  const cls = await API.get(`/api/classes/${classId}`);
-  document.getElementById('className').textContent = cls.name + ' 오늘의 루틴';
-  document.getElementById('rewardText').textContent = cls.reward_text ? `🎁 목표 달성 시: ${cls.reward_text}` : '';
-
   const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
   const pct = Math.round(data.class_rate * 100);
   document.getElementById('classGaugeFill').style.width = pct + '%';
   document.getElementById('classGaugeLabel').textContent = pct + '%';
+  document.getElementById('rewardText').textContent = data.reward_text ? `🎁 목표 달성 시: ${data.reward_text}` : '';
   if (isTeacherMode) {
     const nc = data.class_note_counts || { praise: 0, concern: 0 };
     document.getElementById('classNoteSummary').textContent = `오늘 칭찬 ${nc.praise}번 · 아쉬움 ${nc.concern}번`;
@@ -459,7 +456,7 @@ function backToBoard() {
   if (stopRoutinePolling) { stopRoutinePolling(); stopRoutinePolling = null; }
   document.getElementById('routineView').style.display = 'none';
   document.getElementById('boardView').style.display = 'block';
-  stopBoardPolling = startPolling(loadBoard, 5000);
+  stopBoardPolling = startPolling(loadBoard, 20000);
 }
 
 function showToast(msg) {
@@ -530,7 +527,10 @@ function toggle(routineId, el) {
     });
 }
 
-stopBoardPolling = startPolling(loadBoard, 5000);
+API.get(`/api/classes/${classId}`).then(cls => {
+  document.getElementById('className').textContent = cls.name + ' 오늘의 루틴';
+}).catch(() => {});
+stopBoardPolling = startPolling(loadBoard, 20000);
 </script>
 </body>
 </html>
