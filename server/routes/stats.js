@@ -285,6 +285,7 @@ router.post('/class-draw', async (req, res) => {
 
 // 오늘 학급 뽑기 결과 (아직 안 뽑았으면 null)
 router.get('/class-draw', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const { class_id } = req.query;
   const date = req.query.date || todayStr();
   const row = await db.prepare(`SELECT date, rate, number, tier FROM class_draws WHERE class_id = ? AND date = ?`).get(class_id, date);

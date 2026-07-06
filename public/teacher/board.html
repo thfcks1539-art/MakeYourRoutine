@@ -269,18 +269,22 @@ const GACHA_MESSAGES = {
 };
 
 async function loadClassDrawState() {
-  const draw = await API.get(`/api/stats/class-draw?class_id=${classId}`);
-  const btn = document.getElementById('classDrawBtn');
-  const resetBtn = document.getElementById('classDrawResetBtn');
-  const resultEl = document.getElementById('classDrawResult');
-  if (draw && draw.number) {
-    btn.textContent = '오늘 뽑은 숫자 다시 보기 🎉';
-    resultEl.textContent = `오늘 뽑은 숫자: ${draw.number}`;
-    resetBtn.style.display = '';
-  } else {
-    btn.textContent = '오늘의 뽑기 뽑기! 🎁';
-    resultEl.textContent = '';
-    resetBtn.style.display = 'none';
+  try {
+    const draw = await API.get(`/api/stats/class-draw?class_id=${classId}`);
+    const btn = document.getElementById('classDrawBtn');
+    const resetBtn = document.getElementById('classDrawResetBtn');
+    const resultEl = document.getElementById('classDrawResult');
+    if (draw && draw.number != null) {
+      btn.textContent = '오늘 뽑은 숫자 다시 보기 🎉';
+      resultEl.textContent = `오늘 뽑은 숫자: ${draw.number}`;
+      resetBtn.style.display = 'inline-block';
+    } else {
+      btn.textContent = '오늘의 뽑기 뽑기! 🎁';
+      resultEl.textContent = '';
+      resetBtn.style.display = 'none';
+    }
+  } catch (e) {
+    console.error('loadClassDrawState 오류:', e);
   }
 }
 
