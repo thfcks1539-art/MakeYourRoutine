@@ -142,7 +142,7 @@ router.get('/board', async (req, res) => {
 });
 
 router.get('/dashboard', async (req, res) => {
-  res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=10');
+  res.setHeader('Cache-Control', 'no-store');
   const classId = req.query.class_id;
   const date = req.query.date || todayStr();
   const dow = dowOf(date);
