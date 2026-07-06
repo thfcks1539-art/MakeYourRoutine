@@ -12,8 +12,11 @@ function pickMessageFrom(tiers, classId, rate) {
 
 // 학급 전체 활성 루틴을 한 번에 가져와 학생별로 필터링할 수 있게 그룹화
 // (해당 학생이 그 루틴에서 제외되어 있으면 exclusionMap을 보고 목록에서 빼버림)
-function groupRoutinesByStudent(routines, students, dow, exclusionMap) {
-  const scheduled = routines.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
+function groupRoutinesByStudent(routines, students, dow, exclusionMap, date) {
+  const scheduled = routines.filter(r => {
+    if (r.task_date) return r.task_date === date;
+    return r.days_of_week && r.days_of_week.split(',').map(Number).includes(dow);
+  });
   const common = scheduled.filter(r => r.student_id === null);
   const byStudent = new Map();
   for (const s of students) {
@@ -56,7 +59,7 @@ async function loadClassContext(classId, date, dow) {
     if (!exclusionMap.has(e.routine_id)) exclusionMap.set(e.routine_id, new Set());
     exclusionMap.get(e.routine_id).add(e.student_id);
   }
-  const routinesByStudent = groupRoutinesByStudent(routines, students, dow, exclusionMap);
+  const routinesByStudent = groupRoutinesByStudent(routines, students, dow, exclusionMap, date);
   const checksByStudent = new Map();
   for (const c of checks) {
     if (!checksByStudent.has(c.student_id)) checksByStudent.set(c.student_id, new Map());
@@ -90,7 +93,7 @@ router.get('/board', async (req, res) => {
 
   const [students, routines, checks, absences, notes, cls, exclusions] = await Promise.all([
     db.prepare(`SELECT id, nickname, avatar_json FROM students WHERE class_id = ? AND routine_exempt = 0 ORDER BY number ASC`).all(classId),
-    db.prepare(`SELECT id, student_id, days_of_week FROM routines WHERE class_id = ? AND active = 1`).all(classId),
+    db.prepare(`SELECT id, student_id, days_of_week, task_date FROM routines WHERE class_id = ? AND active = 1`).all(classId),
     db.prepare(`SELECT rc.routine_id, rc.student_id, rc.completed FROM routine_checks rc JOIN students s ON s.id = rc.student_id WHERE s.class_id = ? AND rc.date = ?`).all(classId, date),
     db.prepare(`SELECT sa.student_id FROM student_absences sa JOIN students s ON s.id = sa.student_id WHERE s.class_id = ? AND sa.date = ?`).all(classId, date),
     db.prepare(`SELECT type FROM class_notes WHERE class_id = ? AND date = ?`).all(classId, date),
@@ -111,7 +114,10 @@ router.get('/board', async (req, res) => {
     concern: cls && cls.concern_weight != null ? cls.concern_weight : 0.05
   };
 
-  const scheduled = routines.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
+  const scheduled = routines.filter(r => {
+    if (r.task_date) return r.task_date === date;
+    return r.days_of_week && r.days_of_week.split(',').map(Number).includes(dow);
+  });
   const common = scheduled.filter(r => r.student_id === null);
   const checksByStudent = new Map();
   for (const c of checks) {
