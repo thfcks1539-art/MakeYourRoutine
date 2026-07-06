@@ -44,12 +44,15 @@ router.put('/:id', async (req, res) => {
   }
   let drawConfigJson;
   if (draw_config) {
+    const badNumbers = (draw_config.badNumbers || []).map(Number).filter(n => Number.isFinite(n));
     const lowNumbers = (draw_config.lowNumbers || []).map(Number).filter(n => Number.isFinite(n));
     const highNumbers = (draw_config.highNumbers || []).map(Number).filter(n => Number.isFinite(n));
     if (!lowNumbers.length || !highNumbers.length) {
       return res.status(400).json({ error: '보통 숫자와 특별한 숫자를 하나 이상 입력해주세요' });
     }
     drawConfigJson = JSON.stringify({
+      badNumbers,
+      badThreshold: Number(draw_config.badThreshold),
       lowNumbers,
       highNumbers,
       threshold: Number(draw_config.threshold),
