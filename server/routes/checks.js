@@ -9,7 +9,10 @@ async function activeRoutinesFor(classId, studentId, date) {
     `SELECT * FROM routines WHERE class_id = ? AND active = 1 AND (student_id IS NULL OR student_id = ?)
      AND id NOT IN (SELECT routine_id FROM routine_exclusions WHERE student_id = ?)`
   ).all(classId, studentId, studentId);
-  return rows.filter(r => r.days_of_week.split(',').map(Number).includes(dow));
+  return rows.filter(r => {
+    if (r.task_date) return r.task_date === date;
+    return r.days_of_week && r.days_of_week.split(',').map(Number).includes(dow);
+  });
 }
 
 async function ensureCheckRow(routineId, studentId, date, carriedOver) {
@@ -55,6 +58,7 @@ async function carryOverRoutines(classId, studentId, date, scheduledIds) {
     `SELECT rc.* FROM routine_checks rc
      JOIN routines r ON r.id = rc.routine_id
      WHERE rc.student_id = ? AND rc.date = ? AND rc.completed = 0 AND r.active = 1 AND r.class_id = ?
+     AND r.task_date IS NULL
      AND r.id NOT IN (SELECT routine_id FROM routine_exclusions WHERE student_id = ?)`
   ).all(studentId, yesterday, classId, studentId);
 

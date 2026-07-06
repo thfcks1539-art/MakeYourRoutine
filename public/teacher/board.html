@@ -104,6 +104,7 @@
   .gacha-title { color: var(--color-graphite); font-size: 18px; margin-bottom: 8px; font-family: var(--font-feather), var(--font-kr); }
   .gacha-number { font-size: 120px; font-weight: 800; margin: 12px 0; color: var(--color-duo-green); font-family: var(--font-feather), var(--font-kr); }
   .gacha-number.tier-special { color: var(--color-bubblegum-pink); }
+  .gacha-number.tier-bad { color: #e74c3c; }
   .gacha-number.spin { animation: gachaSpin 0.08s linear infinite; }
   .gacha-number.land { animation: gachaLand 0.4s ease; }
   @keyframes gachaSpin { from { transform: scale(1); } to { transform: scale(1.08); } }
@@ -263,7 +264,8 @@ async function loadBoard() {
 
 const GACHA_MESSAGES = {
   normal: '오늘도 우리 반이 루틴을 했어요! 내일은 더 멋진 숫자가 나올 수 있어요 🌱',
-  special: '오늘 우리 반이 루틴을 정말 많이 했어요! 그래서 특별한 숫자가 나왔어요 🎉✨'
+  special: '오늘 우리 반이 루틴을 정말 많이 했어요! 그래서 특별한 숫자가 나왔어요 🎉✨',
+  bad: '오늘 루틴을 많이 못 했네요 😢 내일은 더 열심히 해봐요!'
 };
 
 async function loadClassDrawState() {
@@ -308,7 +310,7 @@ function playGacha(draw) {
   const rateEl = document.getElementById('gachaRate');
   const msgEl = document.getElementById('gachaMsg');
 
-  numberEl.classList.remove('land', 'tier-special');
+  numberEl.classList.remove('land', 'tier-special', 'tier-bad');
   numberEl.classList.add('spin');
   rateEl.textContent = `오늘 우리 반이 루틴을 ${Math.round(draw.rate * 100)}%만큼 했어요 · 많이 할수록 좋은 숫자가 나와요`;
   msgEl.textContent = '';
@@ -316,7 +318,10 @@ function playGacha(draw) {
 
   let ticks = 0;
   const spin = setInterval(() => {
-    numberEl.textContent = 1 + Math.floor(Math.random() * 5);
+    // 나쁜 숫자 티어면 스핀 중에도 음수 숫자를 보여줌
+    numberEl.textContent = draw.tier === 'bad'
+      ? -(1 + Math.floor(Math.random() * 3))
+      : 1 + Math.floor(Math.random() * 5);
     ticks++;
     if (ticks > 14) {
       clearInterval(spin);
@@ -324,6 +329,7 @@ function playGacha(draw) {
       numberEl.textContent = draw.number;
       numberEl.classList.add('land');
       numberEl.classList.toggle('tier-special', draw.tier === 'special');
+      numberEl.classList.toggle('tier-bad', draw.tier === 'bad');
       msgEl.textContent = GACHA_MESSAGES[draw.tier] || '';
       const soundId = draw.tier === 'special' ? 'drawSpecialSound' : 'drawNormalSound';
       const sound = document.getElementById(soundId);

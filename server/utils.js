@@ -45,6 +45,8 @@ function weightedPick(pairs) {
 }
 
 const DEFAULT_DRAW_CONFIG = {
+  badNumbers: [],          // 낮은 달성률일 때 나오는 나쁜 숫자 (예: [-1, -2]), 비어있으면 비활성
+  badThreshold: 0.3,       // 이 비율 미만이면 나쁜 숫자 영역
   lowNumbers: [1, 2],     // 평소에 나오는 보통 숫자들
   highNumbers: [3, 4, 5], // 잘했을 때 나올 수 있는 특별한 숫자들
   threshold: 0.7,         // 이 정도(0~1) 이상 했을 때부터 특별한 숫자가 나올 수 있음
@@ -54,10 +56,13 @@ const DEFAULT_DRAW_CONFIG = {
 
 function normalizeDrawConfig(config) {
   const c = config || {};
+  const badNumbers = Array.isArray(c.badNumbers) ? c.badNumbers : DEFAULT_DRAW_CONFIG.badNumbers;
   const lowNumbers = Array.isArray(c.lowNumbers) && c.lowNumbers.length ? c.lowNumbers : DEFAULT_DRAW_CONFIG.lowNumbers;
   const highNumbers = Array.isArray(c.highNumbers) && c.highNumbers.length ? c.highNumbers : DEFAULT_DRAW_CONFIG.highNumbers;
   const clamp01 = v => Math.max(0, Math.min(1, v));
   return {
+    badNumbers,
+    badThreshold: clamp01(c.badThreshold ?? DEFAULT_DRAW_CONFIG.badThreshold),
     lowNumbers,
     highNumbers,
     threshold: clamp01(c.threshold ?? DEFAULT_DRAW_CONFIG.threshold),
@@ -78,6 +83,14 @@ function weightsByPosition(numbers, bias) {
 function rollDrawNumber(rate, config) {
   const cfg = normalizeDrawConfig(config);
   const r = Math.max(0, Math.min(1, rate || 0));
+
+  // 달성률이 나쁜 숫자 기준 미만이면 나쁜 숫자 영역 (badNumbers가 설정된 경우에만)
+  if (cfg.badNumbers.length && r < cfg.badThreshold) {
+    const span = Math.max(cfg.badThreshold, 0.0001);
+    const howBad = (cfg.badThreshold - r) / span; // 0(기준 근처)~1(0% 달성)
+    return { number: weightedPick(weightsByPosition(cfg.badNumbers, howBad)), tier: 'bad' };
+  }
+
   if (r >= cfg.threshold) {
     const span = Math.max(1 - cfg.threshold, 0.0001);
     const bonus = (r - cfg.threshold) / span; // 0~1

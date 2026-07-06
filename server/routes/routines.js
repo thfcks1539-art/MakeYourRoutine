@@ -49,9 +49,14 @@ router.put('/:id/exclusions', async (req, res) => {
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 router.post('/', async (req, res) => {
-  const { class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, start_time, deadline_time } = req.body;
+  const { class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, start_time, deadline_time, task_date } = req.body;
   if (!class_id || !title) return res.status(400).json({ error: 'class_id, title 필요' });
+  if (task_date && !DATE_RE.test(task_date)) {
+    return res.status(400).json({ error: '날짜는 YYYY-MM-DD 형식이어야 해요' });
+  }
   if (start_time && !TIME_RE.test(start_time)) {
     return res.status(400).json({ error: '시작 시간은 HH:MM 형식이어야 해요' });
   }
@@ -62,25 +67,29 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: '시작 시간은 마감 시간보다 빨라야 해요' });
   }
   const info = await db.prepare(
-    `INSERT INTO routines (class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, start_time, deadline_time)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO routines (class_id, student_id, title, icon, time_slot, days_of_week, target_count, sort_order, start_time, deadline_time, task_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     class_id,
     student_id || null,
     title,
     icon || '✅',
     time_slot || '하루',
-    days_of_week || '0,1,2,3,4,5,6',
+    task_date ? null : (days_of_week || '0,1,2,3,4,5,6'),
     target_count || 1,
     sort_order || 0,
     start_time || null,
-    deadline_time || null
+    deadline_time || null,
+    task_date || null
   );
   res.json({ id: info.lastInsertRowid });
 });
 
 router.put('/:id', async (req, res) => {
-  const { title, icon, time_slot, days_of_week, target_count, active, sort_order, start_time, deadline_time } = req.body;
+  const { title, icon, time_slot, days_of_week, target_count, active, sort_order, start_time, deadline_time, task_date } = req.body;
+  if (task_date && !DATE_RE.test(task_date)) {
+    return res.status(400).json({ error: '날짜는 YYYY-MM-DD 형식이어야 해요' });
+  }
   if (start_time && !TIME_RE.test(start_time)) {
     return res.status(400).json({ error: '시작 시간은 HH:MM 형식이어야 해요' });
   }
@@ -100,7 +109,8 @@ router.put('/:id', async (req, res) => {
       active = COALESCE(?, active),
       sort_order = COALESCE(?, sort_order),
       start_time = ?,
-      deadline_time = ?
+      deadline_time = ?,
+      task_date = ?
      WHERE id = ?`
   ).run(
     title ?? null,
@@ -112,6 +122,7 @@ router.put('/:id', async (req, res) => {
     sort_order ?? null,
     start_time ?? null,
     deadline_time ?? null,
+    task_date ?? null,
     req.params.id
   );
   res.json({ ok: true });

@@ -83,6 +83,7 @@ function init() {
       await exec(migration);
       await ensureColumn('routines', 'deadline_time', 'deadline_time TEXT');
       await ensureColumn('routines', 'start_time', 'start_time TEXT');
+      await ensureColumn('routines', 'task_date', 'task_date TEXT');
       await ensureColumn('classes', 'draw_config_json', 'draw_config_json TEXT');
       await ensureColumn('students', 'routine_exempt', 'routine_exempt INTEGER DEFAULT 0');
       await ensureColumn('classes', 'praise_weight', 'praise_weight REAL DEFAULT 0.05');

@@ -50,7 +50,17 @@
       하루를 마감하면 학생들이 "오늘 루틴을 한 만큼"에 따라 숫자 뽑기를 해요.
       평소엔 보통 숫자가 나오고, 루틴을 많이 한 날엔 특별한 숫자가 나올 수 있어요.
     </p>
-    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">보통 숫자 (쉼표로 구분, 작은 숫자부터)</label>
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">
+      나쁜 숫자 (쉼표로 구분, 예: -1,-2) <span style="color:var(--color-silver);">— 비워두면 비활성</span>
+    </label>
+    <input id="badNumbers" placeholder="예: -1,-2 (비워두면 사용 안 함)" style="width:100%; max-width:260px;" />
+
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">
+      루틴 달성률이 몇 % 미만이면 나쁜 숫자가 나오는지
+    </label>
+    <input id="badThreshold" type="number" min="0" max="100" placeholder="예: 30" style="width:100px;" /> %
+
+    <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:16px;">보통 숫자 (쉼표로 구분, 작은 숫자부터)</label>
     <input id="lowNumbers" placeholder="예: 1,2" style="width:100%; max-width:260px;" />
 
     <label style="display:block; font-size:13px; color:var(--color-graphite); margin-top:10px;">특별한 숫자 (쉼표로 구분, 작은 숫자부터)</label>
@@ -122,6 +132,8 @@ async function loadGoal() {
   document.getElementById('rewardText').value = cls.reward_text || '';
 
   const draw = cls.draw_config;
+  document.getElementById('badNumbers').value = (draw.badNumbers || []).join(',');
+  document.getElementById('badThreshold').value = Math.round((draw.badThreshold ?? 0.3) * 100);
   document.getElementById('lowNumbers').value = draw.lowNumbers.join(',');
   document.getElementById('highNumbers').value = draw.highNumbers.join(',');
   document.getElementById('drawThreshold').value = Math.round(draw.threshold * 100);
@@ -228,12 +240,15 @@ function parseNumberList(text) {
 }
 
 async function saveDrawConfig() {
+  const badNumbers = parseNumberList(document.getElementById('badNumbers').value);
   const lowNumbers = parseNumberList(document.getElementById('lowNumbers').value);
   const highNumbers = parseNumberList(document.getElementById('highNumbers').value);
   if (!lowNumbers.length || !highNumbers.length) {
     return alert('보통 숫자와 특별한 숫자를 하나 이상 입력해주세요');
   }
   const draw_config = {
+    badNumbers,
+    badThreshold: Number(document.getElementById('badThreshold').value) / 100,
     lowNumbers,
     highNumbers,
     threshold: Number(document.getElementById('drawThreshold').value) / 100,
