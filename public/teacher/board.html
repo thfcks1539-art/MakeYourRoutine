@@ -162,7 +162,7 @@
 <div class="overlay" id="codeOverlay">
   <div class="card">
     <h2 id="codeOverlayName">코드를 입력해주세요</h2>
-    <input id="codeInput" placeholder="내 코드 (4자리)" maxlength="4" inputmode="numeric" />
+    <input id="codeInput" placeholder="내 코드 (4자리)" maxlength="4" inputmode="numeric" enterkeyhint="go" onkeydown="if(event.key==='Enter') submitCode()" />
     <div class="actions">
       <button class="secondary" onclick="closeCodeOverlay()">취소</button>
       <button onclick="submitCode()">확인</button>
@@ -231,6 +231,7 @@ let stopBoardPolling = null;
 let stopRoutinePolling = null;
 let pendingStudent = null;
 let activeStudentId = null;
+let preloadedTodayPromise = null;
 
 async function loadBoard() {
   const data = await API.get(`/api/stats/dashboard?class_id=${classId}`);
@@ -249,7 +250,7 @@ async function loadBoard() {
     const nick = s.nickname.replace(/'/g, "\\'");
     return `<div class="student-card ${s.is_absent ? 'absent' : ''}" onclick="openCodeOverlay(${s.student_id}, '${nick}')">
       ${s.is_absent ? '<div class="absent-badge">🚫</div>' : ''}
-      ${isTeacherMode ? `<button class="absence-toggle" onclick="event.stopPropagation(); toggleAbsence(${s.student_id}, ${s.is_absent})">${s.is_absent ? '출석' : '결석'}</button>` : ''}
+      ${isTeacherMode ? `<button class="absence-toggle" onclick="event.stopPropagation(); toggleAbsence(${s.student_id}, ${s.is_absent}, this)">${s.is_absent ? '출석' : '결석'}</button>` : ''}
       <div class="ring" style="--rate:${rate}"><span>${rate}%</span></div>
       <div>${s.nickname}</div>
       <div class="msg">${s.message || ''}</div>
@@ -389,11 +390,15 @@ function switchTab(tab) {
   document.getElementById('routineStatsGrid').style.display = tab === 'routines' ? 'block' : 'none';
 }
 
-async function toggleAbsence(studentId, currentlyAbsent) {
+async function toggleAbsence(studentId, currentlyAbsent, btn) {
+  const newAbsent = !currentlyAbsent;
+  // 낙관적 업데이트: 버튼 즉시 변경
+  if (btn) { btn.textContent = newAbsent ? '출석' : '결석'; btn.disabled = true; }
   try {
-    await API.post('/api/checks/absence', { student_id: studentId, absent: !currentlyAbsent });
+    await API.post('/api/checks/absence', { student_id: studentId, absent: newAbsent });
     loadBoard();
   } catch (e) {
+    if (btn) { btn.textContent = currentlyAbsent ? '출석' : '결석'; btn.disabled = false; }
     alert(e.message);
   }
 }
@@ -425,6 +430,8 @@ async function submitNote() {
 
 function openCodeOverlay(studentId, nickname) {
   pendingStudent = { id: studentId, nickname };
+  // 학생이 코드를 입력하는 동안 루틴 데이터 미리 로드
+  preloadedTodayPromise = API.get(`/api/checks/today?class_id=${classId}&student_id=${studentId}`).catch(() => null);
   document.getElementById('codeOverlayName').textContent = `${nickname}, 내 코드를 입력해줘`;
   document.getElementById('codeInput').value = '';
   document.getElementById('codeOverlay').classList.add('show');
@@ -433,6 +440,7 @@ function openCodeOverlay(studentId, nickname) {
 
 function closeCodeOverlay() {
   pendingStudent = null;
+  preloadedTodayPromise = null;
   document.getElementById('codeOverlay').classList.remove('show');
 }
 
@@ -443,6 +451,7 @@ async function submitCode() {
     const s = await API.post('/api/students/login', { login_code: code });
     if (s.id !== pendingStudent.id) {
       alert('코드가 일치하지 않아요. 본인 카드를 다시 눌러주세요.');
+      preloadedTodayPromise = null;
       return;
     }
     closeCodeOverlay();
@@ -478,7 +487,13 @@ function showToast(msg) {
 
 async function loadToday() {
   if (!activeStudentId) return;
-  const data = await API.get(`/api/checks/today?class_id=${classId}&student_id=${activeStudentId}`);
+  let data;
+  if (preloadedTodayPromise) {
+    const p = preloadedTodayPromise;
+    preloadedTodayPromise = null;
+    data = await p;
+  }
+  if (!data) data = await API.get(`/api/checks/today?class_id=${classId}&student_id=${activeStudentId}`);
   const slots = {};
   data.routines.forEach(r => {
     slots[r.time_slot] = slots[r.time_slot] || [];

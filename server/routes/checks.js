@@ -66,10 +66,12 @@ async function carryOverRoutines(classId, studentId, date, scheduledIds) {
   if (!candidateIds.length) return [];
 
   const placeholders = candidateIds.map(() => '?').join(',');
-  const routines = await db.prepare(`SELECT * FROM routines WHERE id IN (${placeholders})`).all(...candidateIds);
+  // 루틴 정보 조회와 체크 행 준비를 병렬 실행
+  const [routines, checkMap] = await Promise.all([
+    db.prepare(`SELECT * FROM routines WHERE id IN (${placeholders})`).all(...candidateIds),
+    ensureCheckRowsBatch(candidateIds, studentId, date, true)
+  ]);
   const routineMap = new Map(routines.map(r => [r.id, r]));
-
-  const checkMap = await ensureCheckRowsBatch(candidateIds, studentId, date, true);
 
   return candidateIds
     .filter(id => routineMap.has(id))
@@ -83,14 +85,17 @@ router.get('/today', async (req, res) => {
   const routines = await activeRoutinesFor(class_id, student_id, date);
   const scheduledIds = new Set(routines.map(r => r.id));
 
-  const checkMap = await ensureCheckRowsBatch(routines.map(r => r.id), student_id, date, false);
+  // 체크 상태 준비와 이월 루틴 조회를 병렬 실행
+  const [checkMap, carriedRows] = await Promise.all([
+    ensureCheckRowsBatch(routines.map(r => r.id), student_id, date, false),
+    carryOverRoutines(class_id, student_id, date, scheduledIds)
+  ]);
   const scheduled = routines.map(r => ({
     ...r, check: checkMap.get(r.id), carried_over: false,
     not_started: isBeforeStart(r.start_time),
     locked: isPastDeadline(r.deadline_time) || isBeforeStart(r.start_time)
   }));
 
-  const carriedRows = await carryOverRoutines(class_id, student_id, date, scheduledIds);
   const carried = carriedRows.map(r => ({
     ...r, carried_over: true,
     not_started: isBeforeStart(r.start_time),
