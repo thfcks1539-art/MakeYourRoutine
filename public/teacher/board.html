@@ -430,8 +430,6 @@ async function submitNote() {
 
 function openCodeOverlay(studentId, nickname) {
   pendingStudent = { id: studentId, nickname };
-  // 학생이 코드를 입력하는 동안 루틴 데이터 미리 로드
-  preloadedTodayPromise = API.get(`/api/checks/today?class_id=${classId}&student_id=${studentId}`).catch(() => null);
   document.getElementById('codeOverlayName').textContent = `${nickname}, 내 코드를 입력해줘`;
   document.getElementById('codeInput').value = '';
   document.getElementById('codeOverlay').classList.add('show');
@@ -451,9 +449,10 @@ async function submitCode() {
     const s = await API.post('/api/students/login', { login_code: code });
     if (s.id !== pendingStudent.id) {
       alert('코드가 일치하지 않아요. 본인 카드를 다시 눌러주세요.');
-      preloadedTodayPromise = null;
       return;
     }
+    // 코드 확인과 동시에 루틴 데이터 로드 시작 (화면 전환 기다리지 않고 병렬)
+    preloadedTodayPromise = API.get(`/api/checks/today?class_id=${classId}&student_id=${s.id}`).catch(() => null);
     closeCodeOverlay();
     enterRoutineView(s.id, s.nickname);
   } catch (e) {
