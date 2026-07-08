@@ -466,7 +466,7 @@ function enterRoutineView(studentId, nickname) {
   document.getElementById('boardView').style.display = 'none';
   document.getElementById('routineView').style.display = 'block';
   document.getElementById('routineGreeting').textContent = `안녕, ${nickname}!`;
-  stopRoutinePolling = startPolling(loadToday, 7000);
+  stopRoutinePolling = startPolling(loadToday, 30000);
 }
 
 function backToBoard() {
