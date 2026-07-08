@@ -18,15 +18,15 @@
     <div id="createBox">
       <p>새 학급을 만들거나, 기존 학급 번호로 로그인하세요.</p>
       <h3>새 학급 만들기</h3>
-      <input id="newClassName" placeholder="학급 이름 (예: 3학년 2반)" />
-      <input id="newClassPin" placeholder="교사 비밀번호(PIN)" />
+      <input id="newClassName" placeholder="학급 이름 (예: 3학년 2반)" onkeydown="if(event.key==='Enter') document.getElementById('newClassPin').focus()" />
+      <input id="newClassPin" placeholder="교사 비밀번호(PIN)" onkeydown="if(event.key==='Enter') createClass()" enterkeyhint="go" />
       <button onclick="createClass()">학급 만들기</button>
       <hr />
       <h3>기존 학급 로그인</h3>
       <div id="classListBox"></div>
       <div id="pinBox" style="display:none; margin-top:10px;">
         <p id="pinPrompt"></p>
-        <input id="loginClassPin" type="password" placeholder="교사 비밀번호(PIN)" />
+        <input id="loginClassPin" type="password" placeholder="교사 비밀번호(PIN)" onkeydown="if(event.key==='Enter') loginClass()" enterkeyhint="go" />
         <button onclick="loginClass()">로그인</button>
         <button class="secondary" onclick="cancelPinBox()">취소</button>
       </div>
