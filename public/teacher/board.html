@@ -474,7 +474,7 @@ function backToBoard() {
   if (stopRoutinePolling) { stopRoutinePolling(); stopRoutinePolling = null; }
   document.getElementById('routineView').style.display = 'none';
   document.getElementById('boardView').style.display = 'block';
-  stopBoardPolling = startPolling(loadBoard, 20000);
+  stopBoardPolling = startPolling(loadBoard, 30000);
 }
 
 function showToast(msg) {
@@ -554,7 +554,7 @@ function toggle(routineId, el) {
 API.get(`/api/classes/${classId}`).then(cls => {
   document.getElementById('className').textContent = cls.name + ' 오늘의 루틴';
 }).catch(() => {});
-stopBoardPolling = startPolling(loadBoard, 20000);
+stopBoardPolling = startPolling(loadBoard, 30000);
 </script>
 </body>
 </html>
